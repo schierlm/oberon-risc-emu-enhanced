@@ -16,7 +16,7 @@ struct Damage {
 };
 
 struct RISC *risc_new(void);
-void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height);
+void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height, bool screen_color);
 void risc_set_leds(struct RISC *risc, const struct RISC_LED *leds);
 void risc_set_serial(struct RISC *risc, const struct RISC_Serial *serial);
 void risc_set_spi(struct RISC *risc, int index, const struct RISC_SPI *spi);
@@ -32,6 +32,7 @@ void risc_mouse_button(struct RISC *risc, int button, bool down);
 void risc_keyboard_input(struct RISC *risc, uint8_t *scancodes, uint32_t len);
 
 uint32_t *risc_get_framebuffer_ptr(struct RISC *risc);
+uint32_t *risc_get_palette_ptr(struct RISC *risc);
 struct Damage risc_get_framebuffer_damage(struct RISC *risc);
 
 #endif  // RISC_H

@@ -9,6 +9,7 @@ It adds the following features:
 - Use Drag & Drop for sending files to Oberon via PCLink
 - Truncate filesystem images when requested from within Oberon
 - Provide the current wall clock time via Hardware Enumerator, if enabled
+- 4-bit color mode
 
 
 ## Description from the original README
@@ -89,6 +90,7 @@ Usage: `risc [options] disk-image.dsk`
 * `--mem <megs>` Give the system more than 1 megabyte of RAM.
 * `--rtc` Provide the current wall clock time via Hardware Enumerator
 * `--size <width>x<height>` Use a non-standard window size.
+* `--color` Use 16-color mode (requires a different Display.Mod)
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.
 

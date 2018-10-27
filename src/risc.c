@@ -11,7 +11,7 @@
 // Our memory layout is slightly different from the FPGA implementation:
 // The FPGA uses a 20-bit address bus and thus ignores the top 12 bits,
 // while we use all 32 bits. This allows us to have more than 1 megabyte
-// of RAM.
+// of RAM and/or a 16 color framebuffer.
 //
 // In the default configuration, the emulator is compatible with the
 // FPGA system. But If the user requests more memory, we move the
@@ -25,6 +25,7 @@
 #define ROMStart     0xFFFFF800
 #define ROMWords     512
 #define IOStart      0xFFFFFFC0
+#define PaletteStart 0xFFFFFF80
 
 #define HW_ENUM_ID(a,b,c,d) (((a) << 24) | ((b) << 16) | ((c) << 8) | (d))
 
@@ -55,6 +56,7 @@ struct RISC {
   const struct RISC_Clipboard *clipboard;
   uint32_t initial_clock;
 
+  bool fb_color;
   int fb_width;   // words
   int fb_height;  // lines
   struct Damage damage;
@@ -64,6 +66,7 @@ struct RISC {
 
   uint32_t *RAM;
   uint32_t ROM[ROMWords];
+  uint32_t Palette[16];
 };
 
 enum {
@@ -84,6 +87,11 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value);
 
 static const uint32_t bootloader[ROMWords] = {
 #include "risc-boot.inc"
+};
+
+static const uint32_t default_palette[16] = {
+  0xffffff, 0xff0000, 0x00ff00, 0x0000ff, 0xff00ff, 0xffff00, 0x00ffff, 0xaa0000,
+  0x009a00, 0x00009a, 0x0acbf3, 0x008282, 0x8a8a8a, 0xbebebe, 0xdfdfdf, 0x000000
 };
 
 
@@ -111,7 +119,7 @@ struct RISC *risc_new() {
   return risc;
 }
 
-void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height) {
+void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height, bool screen_color) {
   if (megabytes_ram < 1) {
     megabytes_ram = 1;
   }
@@ -121,8 +129,14 @@ void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option
 
   risc->display_start = megabytes_ram << 20;
   risc->mem_size = risc->display_start + (screen_width * screen_height) / 8;
+  risc->fb_color = screen_color;
   risc->fb_width = screen_width / 32;
   risc->fb_height = screen_height;
+  if (screen_color) {
+    risc->fb_width = screen_width / 8;
+    risc->mem_size = risc->display_start + (screen_width * screen_height) / 2;
+    memcpy(risc->Palette, default_palette, sizeof(risc->Palette));
+  }
   risc->damage = (struct Damage){
     .x1 = 0,
     .y1 = 0,
@@ -139,14 +153,6 @@ void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option
   risc->ROM[373] = 0x41160000 + (mem_lim & 0x0000FFFF);
   uint32_t stack_org = risc->display_start / 2;
   risc->ROM[376] = 0x61000000 + (stack_org >> 16);
-
-  // Inform the display driver of the framebuffer layout.
-  // This isn't a very pretty mechanism, but this way our disk images
-  // should still boot on the standard FPGA system.
-  risc->RAM[DefaultDisplayStart/4] = 0x53697A67;
-  risc->RAM[DefaultDisplayStart/4+1] = screen_width;
-  risc->RAM[DefaultDisplayStart/4+2] = screen_height;
-  risc->RAM[DefaultDisplayStart/4+3] = risc->display_start;
 
   risc_reset(risc);
 }
@@ -485,6 +491,9 @@ static void risc_store_byte(struct RISC *risc, uint32_t address, uint8_t value) 
 }
 
 static uint32_t risc_load_io(struct RISC *risc, uint32_t address) {
+  if (risc->fb_color && address < IOStart && address >= PaletteStart) {
+    return risc->Palette[(address - PaletteStart)/4];
+  }
   switch (address - IOStart) {
     case 0: {
       // Millisecond counter
@@ -571,6 +580,16 @@ static uint32_t risc_load_io(struct RISC *risc, uint32_t address) {
 }
 
 static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
+  if (risc->fb_color && address < IOStart && address >= PaletteStart) {
+    risc->Palette[(address - PaletteStart)/4] = value;
+    risc->damage = (struct Damage){
+      .x1 = 0,
+      .y1 = 0,
+      .x2 = risc->fb_width - 1,
+      .y2 = risc->fb_height - 1
+    };
+    return;
+  }
   switch (address - IOStart) {
     case 4: {
       // LED control
@@ -624,7 +643,12 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
       switch(value) {
       case 0:
         risc->hwenum_buf[risc->hwenum_cnt++] = 1; // version
-        risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('m','V','i','d');
+        if (!risc->color) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('m','V','i','d');
+        }
+        if (risc->color) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('1','6','c','V');
+        }
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('T','i','m','r');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('S','w','t','c');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('S','P','I','f');
@@ -642,12 +666,27 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         }
         break;
       case HW_ENUM_ID('m','V','i','d'):
-        risc->hwenum_buf[risc->hwenum_cnt++] = 1; // number of modes
-        risc->hwenum_buf[risc->hwenum_cnt++] = 0; // no mode switching supported
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 32; // screen width
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_height; // screen height
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 4; // scanline span
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+        if (!risc->color) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // number of modes
+          risc->hwenum_buf[risc->hwenum_cnt++] = 0; // no mode switching supported
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 32; // screen width
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_height; // screen height
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 4; // scanline span
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+        }
+        break;
+      case HW_ENUM_ID('1','6','c','V'):
+        if (risc->color) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // number of modes
+          risc->hwenum_buf[risc->hwenum_cnt++] = 0; // first mode
+          risc->hwenum_buf[risc->hwenum_cnt++] = 0; // no mode switching supported
+          risc->hwenum_buf[risc->hwenum_cnt++] = PaletteStart; // palette address
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 8; // screen width
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_height; // screen height
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 4; // scanline span
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+        }
+        break;
         break;
       case HW_ENUM_ID('T','i','m','r'):
         risc->hwenum_buf[risc->hwenum_cnt++] = -64; // MMIO address
@@ -736,6 +775,10 @@ void risc_keyboard_input(struct RISC *risc, uint8_t *scancodes, uint32_t len) {
 
 uint32_t *risc_get_framebuffer_ptr(struct RISC *risc) {
   return &risc->RAM[risc->display_start/4];
+}
+
+uint32_t *risc_get_palette_ptr(struct RISC *risc) {
+  return risc->Palette;
 }
 
 struct Damage risc_get_framebuffer_damage(struct RISC *risc) {
