@@ -11,7 +11,7 @@
 // Our memory layout is slightly different from the FPGA implementation:
 // The FPGA uses a 20-bit address bus and thus ignores the top 12 bits,
 // while we use all 32 bits. This allows us to have more than 1 megabyte
-// of RAM.
+// of RAM and/or a 16 color framebuffer.
 //
 // In the default configuration, the emulator is compatible with the
 // FPGA system. But If the user requests more memory, we move the
@@ -25,6 +25,7 @@
 #define ROMStart     0xFFFFF800
 #define ROMWords     512
 #define IOStart      0xFFFFFFC0
+#define PaletteStart 0xFFFFFF80
 
 
 struct RISC {
@@ -49,12 +50,14 @@ struct RISC {
   const struct RISC_SPI *spi[4];
   const struct RISC_Clipboard *clipboard;
 
+  bool fb_color;
   int fb_width;   // words
   int fb_height;  // lines
   struct Damage damage;
 
   uint32_t *RAM;
   uint32_t ROM[ROMWords];
+  uint32_t Palette[16];
 };
 
 enum {
@@ -77,6 +80,11 @@ static const uint32_t bootloader[ROMWords] = {
 #include "risc-boot.inc"
 };
 
+static const uint32_t default_palette[16] = {
+  0xffffff, 0xff0000, 0x00ff00, 0x0000ff, 0xff00ff, 0xffff00, 0x00ffff, 0xaa0000,
+  0x009a00, 0x00009a, 0x0acbf3, 0x008282, 0x8a8a8a, 0xbebebe, 0xdfdfdf, 0x000000
+};
+
 
 struct RISC *risc_new() {
   struct RISC *risc = calloc(1, sizeof(*risc));
@@ -96,7 +104,7 @@ struct RISC *risc_new() {
   return risc;
 }
 
-void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height) {
+void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height, bool screen_color) {
   if (megabytes_ram < 1) {
     megabytes_ram = 1;
   }
@@ -106,8 +114,14 @@ void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option
 
   risc->display_start = megabytes_ram << 20;
   risc->mem_size = risc->display_start + (screen_width * screen_height) / 8;
+  risc->fb_color = screen_color;
   risc->fb_width = screen_width / 32;
   risc->fb_height = screen_height;
+  if (screen_color) {
+    risc->fb_width = screen_width / 8;
+    risc->mem_size = risc->display_start + (screen_width * screen_height) / 2;
+    memcpy(risc->Palette, default_palette, sizeof(risc->Palette));
+  }
   risc->damage = (struct Damage){
     .x1 = 0,
     .y1 = 0,
@@ -140,7 +154,7 @@ void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option
   // Inform the display driver of the framebuffer layout.
   // This isn't a very pretty mechanism, but this way our disk images
   // should still boot on the standard FPGA system.
-  risc->RAM[DefaultDisplayStart/4] = 0x53697A67;
+  risc->RAM[DefaultDisplayStart/4] = screen_color ? 0x436F537A : 0x53697A67;
   risc->RAM[DefaultDisplayStart/4+1] = screen_width;
   risc->RAM[DefaultDisplayStart/4+2] = screen_height;
   risc->RAM[DefaultDisplayStart/4+3] = risc->display_start;
@@ -453,6 +467,9 @@ static void risc_store_byte(struct RISC *risc, uint32_t address, uint8_t value) 
 }
 
 static uint32_t risc_load_io(struct RISC *risc, uint32_t address) {
+  if (risc->fb_color && address < IOStart && address >= PaletteStart) {
+    return risc->Palette[(address - PaletteStart)/4];
+  }
   switch (address - IOStart) {
     case 0: {
       // Millisecond counter
@@ -532,6 +549,16 @@ static uint32_t risc_load_io(struct RISC *risc, uint32_t address) {
 }
 
 static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
+  if (risc->fb_color && address < IOStart && address >= PaletteStart) {
+    risc->Palette[(address - PaletteStart)/4] = value;
+    risc->damage = (struct Damage){
+      .x1 = 0,
+      .y1 = 0,
+      .x2 = risc->fb_width - 1,
+      .y2 = risc->fb_height - 1
+    };
+    return;
+  }
   switch (address - IOStart) {
     case 4: {
       // LED control
@@ -615,6 +642,10 @@ void risc_keyboard_input(struct RISC *risc, uint8_t *scancodes, uint32_t len) {
 
 uint32_t *risc_get_framebuffer_ptr(struct RISC *risc) {
   return &risc->RAM[risc->display_start/4];
+}
+
+uint32_t *risc_get_palette_ptr(struct RISC *risc) {
+  return risc->Palette;
 }
 
 struct Damage risc_get_framebuffer_damage(struct RISC *risc) {
