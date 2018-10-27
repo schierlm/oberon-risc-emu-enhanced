@@ -20,11 +20,13 @@
 // As we don't change DisplayStart, this extra memory is not useful for a
 // larger heap.
 
-#define MemSize      0x00300000
-#define MemWords     (MemSize / 4)
+#define BWMemSize      0x00180000
+#define BWMemWords     (BWMemSize / 4)
+#define ColorMemSize   0x00300000
+#define ColorMemWords  (ColorMemSize / 4)
 #define ROMStart     0xFFFFF800
 #define ROMWords     512
-#define DisplayStart 0x000E7F00
+#define DefaultDisplayStart 0x000E7F00
 #define IOStart      0xFFFFFFC0
 #define PaletteStart 0xFFFFFF80
 
@@ -53,7 +55,8 @@ struct RISC {
   int fb_height;  // lines
   struct Damage damage;
 
-  uint32_t RAM[MemWords];
+  uint32_t *RAM;
+  uint32_t MemWords, DisplayStart;
   uint32_t ROM[ROMWords];
   uint32_t Palette[16];
 };
@@ -86,6 +89,9 @@ static const uint32_t default_palette[16] = {
 
 struct RISC *risc_new() {
   struct RISC *risc = calloc(1, sizeof(*risc));
+  risc->RAM = calloc(BWMemWords, sizeof(uint32_t));
+  risc->MemWords = BWMemWords;
+  risc->DisplayStart = DefaultDisplayStart;
   memcpy(risc->ROM, bootloader, sizeof(risc->ROM));
   risc_screen_size_hack(risc, RISC_FRAMEBUFFER_WIDTH, RISC_FRAMEBUFFER_HEIGHT, false);
   risc_reset(risc);
@@ -129,9 +135,15 @@ void risc_screen_size_hack(struct RISC *risc, int width, int height, bool color)
     .y2 = risc->fb_height - 1
   };
 
-  risc->RAM[DisplayStart/4] = 0x53697A66;  // magic value 'SIZE'+1
-  risc->RAM[DisplayStart/4+1] = width;
-  risc->RAM[DisplayStart/4+2] = height;
+  if (risc->MemWords != (color ? ColorMemWords : BWMemWords)) {
+    risc->MemWords = (color ? ColorMemWords : BWMemWords);
+    free(risc->RAM);
+    risc->RAM = calloc(risc->MemWords, sizeof(uint32_t));
+  }
+
+  risc->RAM[risc->DisplayStart/4] = 0x53697A66;  // magic value 'SIZE'+1
+  risc->RAM[risc->DisplayStart/4+1] = width;
+  risc->RAM[risc->DisplayStart/4+2] = height;
 }
 
 void risc_reset(struct RISC *risc) {
@@ -151,7 +163,7 @@ void risc_run(struct RISC *risc, int cycles) {
 
 static void risc_single_step(struct RISC *risc) {
   uint32_t ir;
-  if (risc->PC < MemWords) {
+  if (risc->PC < risc->MemWords) {
     ir = risc->RAM[risc->PC];
   } else if (risc->PC >= ROMStart/4 && risc->PC < ROMStart/4 + ROMWords) {
     ir = risc->ROM[risc->PC - ROMStart/4];
@@ -362,7 +374,7 @@ static void risc_set_register(struct RISC *risc, int reg, uint32_t value) {
 }
 
 static uint32_t risc_load_word(struct RISC *risc, uint32_t address) {
-  if (address < MemSize) {
+  if (address/4 < risc->MemWords) {
     return risc->RAM[address/4];
   } else {
     return risc_load_io(risc, address);
@@ -394,18 +406,18 @@ static void risc_update_damage(struct RISC *risc, int w) {
 }
 
 static void risc_store_word(struct RISC *risc, uint32_t address, uint32_t value) {
-  if (address < DisplayStart) {
+  if (address < risc->DisplayStart) {
     risc->RAM[address/4] = value;
-  } else if (address < MemSize) {
+  } else if (address/4 < risc->MemWords) {
     risc->RAM[address/4] = value;
-    risc_update_damage(risc, address/4 - DisplayStart/4);
+    risc_update_damage(risc, address/4 - risc->DisplayStart/4);
   } else {
     risc_store_io(risc, address, value);
   }
 }
 
 static void risc_store_byte(struct RISC *risc, uint32_t address, uint8_t value) {
-  if (address < MemSize) {
+  if (address/4 < risc->MemWords) {
     uint32_t w = risc_load_word(risc, address);
     uint32_t shift = (address & 3) * 8;
     w &= ~(0xFFu << shift);
@@ -591,7 +603,7 @@ void risc_keyboard_input(struct RISC *risc, uint8_t *scancodes, uint32_t len) {
 }
 
 uint32_t *risc_get_framebuffer_ptr(struct RISC *risc) {
-  return &risc->RAM[DisplayStart/4];
+  return &risc->RAM[risc->DisplayStart/4];
 }
 
 uint32_t *risc_get_palette_ptr(struct RISC *risc) {
