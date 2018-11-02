@@ -70,6 +70,7 @@ static struct option long_options[] = {
   { "serial-out",       required_argument, NULL, 'O' },
   { "boot-from-serial", no_argument,       NULL, 'S' },
   { "color",            no_argument,       NULL, 'c' },
+  { "memory-factor",    required_argument, NULL, 'M' },
   { NULL,               no_argument,       NULL, 0   }
 };
 
@@ -91,6 +92,7 @@ static void usage() {
        "  --leds                Log LED state on stdout\n"
        "  --color               Use 16 color mode (requires modified Display.Mod)\n"
        "  --size WIDTHxHEIGHT   Set framebuffer size\n"
+       "  --memory-factor SIZE  Multiply the usable memory by SIZE\n"
        "  --boot-from-serial    Boot from serial line (disk image not required)\n"
        "  --serial-in FILE      Read serial input from FILE\n"
        "  --serial-out FILE     Write serial output to FILE\n"
@@ -117,8 +119,8 @@ int main (int argc, char *argv[]) {
   const char *serial_out = NULL;
   bool boot_from_serial = false, color = false;
 
-  int opt;
-  while ((opt = getopt_long(argc, argv, "z:fLs:I:O:Sc", long_options, NULL)) != -1) {
+  int opt, memoryFactor = 1;
+  while ((opt = getopt_long(argc, argv, "z:fLs:I:O:ScM:", long_options, NULL)) != -1) {
     switch (opt) {
       case 'z': {
         double x = strtod(optarg, 0);
@@ -163,10 +165,18 @@ int main (int argc, char *argv[]) {
         risc_set_switches(risc, 1);
         break;
       }
+      case 'M': {
+        memoryFactor = atoi(optarg);
+	break;
+      }
       default: {
         usage();
       }
     }
+  }
+
+  if (memoryFactor > 1) {
+    risc_scale_memory(risc, memoryFactor);
   }
 
   if (optind == argc - 1) {

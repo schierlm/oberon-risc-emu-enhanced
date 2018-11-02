@@ -11,7 +11,7 @@ MODULE Display;  (*NW 5.11.2013 / 3.7.2016*)
     replace* = 0; paint* = 1; invert* = 2;  (*modes*)
     screenW = 1024; screenH = 768;      (* nbr of pixels on screen *)
     LINELEN = screenW DIV PP8;      (* nbr of bytes per screenW *)
-    base = 0E7F00H; (* base address *)
+    defBase = 0E7F00H; (* base address *)
 
   TYPE Frame* = POINTER TO FrameDesc;
     FrameMsg* = RECORD END ;
@@ -21,7 +21,7 @@ MODULE Display;  (*NW 5.11.2013 / 3.7.2016*)
         handle*: Handler
       END ;
 
-  VAR Base*, Width*, Height*, LineLength: INTEGER;
+  VAR Base*, base, Width*, Height*, LineLength: INTEGER;
     arrow*, star*, hook*, updown*, block*, cross*, grey*: INTEGER;
     (*a pattern is an array of bytes; the first is its width (< 32), the second its height, the rest the raster*)
 
@@ -241,13 +241,17 @@ MODULE Display;  (*NW 5.11.2013 / 3.7.2016*)
     END
   END ReplPattern;
 
-BEGIN Base := base; Width := screenW; Height := screenH; LineLength := LINELEN;
+BEGIN base := defBase; Width := screenW; Height := screenH; LineLength := LINELEN;
   SYSTEM.GET(base, arrow);
-  IF arrow = 53697A66H THEN
-    SYSTEM.GET(Base+4, Width);
-    SYSTEM.GET(Base+8, Height);
-    LineLength := Width DIV PP8;
+  IF arrow = 4D6F7665H THEN
+    SYSTEM.GET(base + 4, base);
+    SYSTEM.GET(base, arrow);
   END;
+  IF arrow = 53697A66H THEN
+    SYSTEM.GET(base+4, Width);
+    SYSTEM.GET(base+8, Height);
+    LineLength := Width DIV PP8;
+  END; Base := base;
   IF white = 1 THEN
     (* move color 1 to 3, 14 to 11, then copy 0 to 14 and 15 to 1 *)
     SYSTEM.GET(-128+1*4, arrow); SYSTEM.PUT(-128+3*4,arrow);

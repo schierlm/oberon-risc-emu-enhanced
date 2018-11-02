@@ -146,6 +146,23 @@ void risc_screen_size_hack(struct RISC *risc, int width, int height, bool color)
   risc->RAM[risc->DisplayStart/4+2] = height;
 }
 
+void risc_scale_memory(struct RISC *risc, int memoryFactor) {
+  int width = risc->RAM[risc->DisplayStart/4+1], height = risc->RAM[risc->DisplayStart/4+2];
+  risc->MemWords += (memoryFactor - 1) * risc->DisplayStart/4;
+  free(risc->RAM);
+  risc->RAM = calloc(risc->MemWords, sizeof(uint32_t));
+  risc->RAM[risc->DisplayStart/4] = 0x4D6F7665;  // magic value 'Move'
+  risc->RAM[risc->DisplayStart/4+1] = risc->DisplayStart * memoryFactor;
+  risc->DisplayStart *= memoryFactor;
+  risc->RAM[risc->DisplayStart/4] = 0x53697A66;  // magic value 'Size'+1
+  risc->RAM[risc->DisplayStart/4+1] = width;
+  risc->RAM[risc->DisplayStart/4+2] = height;
+  risc->ROM[339] = (risc->ROM[339] & 0xFFFF0000) | (memoryFactor * 8);
+  risc->ROM[372] = (risc->ROM[372] & 0xFFFF0000) | ((memoryFactor * 0x0E7EF0) >> 16);
+  risc->ROM[373] = (risc->ROM[373] & 0xFFFF0000) | ((memoryFactor * 0x0E7EF0) & 0x0000FFFF);
+  risc->ROM[376] = (risc->ROM[376] & 0xFFFF0000) | (memoryFactor * 8);
+}
+
 void risc_reset(struct RISC *risc) {
   risc->PC = ROMStart/4;
 }

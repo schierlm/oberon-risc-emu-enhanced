@@ -22,6 +22,7 @@ void risc_set_spi(struct RISC *risc, int index, const struct RISC_SPI *spi);
 void risc_set_clipboard(struct RISC *risc, const struct RISC_Clipboard *clipboard);
 void risc_set_switches(struct RISC *risc, int switches);
 void risc_screen_size_hack(struct RISC *risc, int width, int height, bool color);
+void risc_scale_memory(struct RISC *risc, int memoryFactor);
 
 void risc_reset(struct RISC *risc);
 void risc_run(struct RISC *risc, int cycles);

@@ -5,7 +5,7 @@ MODULE Display;  (*NW 5.11.2013*)
 
   CONST black* = 0; white* = 1;  (*black = background*)
     replace* = 0; paint* = 1; invert* = 2;  (*modes*)
-    base = 0E7F00H;  (*adr of 1024 x 768 pixel, monocolor display frame*)
+    defBase = 0E7F00H;  (*adr of 1024 x 768 pixel, monocolor display frame*)
 
   TYPE Frame* = POINTER TO FrameDesc;
     FrameMsg* = RECORD END ;
@@ -15,7 +15,7 @@ MODULE Display;  (*NW 5.11.2013*)
         handle*: Handler
       END ;
 
-  VAR Base*, Width*, Height*, Span: INTEGER;
+  VAR Base*, base, Width*, Height*, Span: INTEGER;
     arrow*, star*, hook*, updown*, block*, cross*, grey*: INTEGER;
     (*a pattern is an array of bytes; the first is its width (< 32), the second its height, the rest the raster*)
 
@@ -193,6 +193,10 @@ MODULE Display;  (*NW 5.11.2013*)
   VAR magic: INTEGER;
   BEGIN
     SYSTEM.GET(base, magic);
+    IF magic = 4D6F7665H THEN
+      SYSTEM.GET(base + 4, base);
+      SYSTEM.GET(base, magic);
+    END;
     IF magic = 53697A65H THEN
       SYSTEM.GET(base + 4, Width);
       SYSTEM.GET(base + 8, Height);
@@ -206,7 +210,7 @@ MODULE Display;  (*NW 5.11.2013*)
     END;
   END InitResolution;
 
-BEGIN Base := base; InitResolution;
+BEGIN base := defBase; InitResolution; Base := base;
   arrow := SYSTEM.ADR($0F0F 0060 0070 0038 001C 000E 0007 8003 C101 E300 7700 3F00 1F00 3F00 7F00 FF00$);
   star := SYSTEM.ADR($0F0F 8000 8220 8410 8808 9004 A002 C001 7F7F C001 A002 9004 8808 8410 8220 8000$);
   hook := SYSTEM.ADR($0C0C 070F 8707 C703 E701 F700 7F00 3F00 1F00 0F00 0700 0300 01$);
