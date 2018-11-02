@@ -167,7 +167,7 @@ int main (int argc, char *argv[]) {
       }
       case 'M': {
         memoryFactor = atoi(optarg);
-	break;
+        break;
       }
       default: {
         usage();
@@ -270,6 +270,25 @@ int main (int argc, char *argv[]) {
           if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
             display_scale = scale_display(window, &risc_rect, &display_rect);
           }
+          break;
+        }
+
+        case SDL_DROPFILE: {
+          char *dropped_file = event.drop.file;
+          char *dropped_file_name = strrchr(dropped_file, '/');
+          if (dropped_file_name == NULL)
+            dropped_file_name = strrchr(dropped_file, '\\');
+          if (dropped_file_name != NULL)
+            dropped_file_name++;
+          else
+            dropped_file_name = dropped_file;
+          printf("Dropped %s [%s]\n", dropped_file, dropped_file_name);
+          FILE *f = fopen("PCLink.REC", "w");
+          fputs(dropped_file_name, f);
+          fputs(" ", f);
+          fputs(dropped_file, f);
+          fclose(f);
+          SDL_free(dropped_file);
           break;
         }
 
