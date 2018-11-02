@@ -270,6 +270,25 @@ int main (int argc, char *argv[]) {
           break;
         }
 
+        case SDL_DROPFILE: {
+          char *dropped_file = event.drop.file;
+          char *dropped_file_name = strrchr(dropped_file, '/');
+          if (dropped_file_name == NULL)
+            dropped_file_name = strrchr(dropped_file, '\\');
+          if (dropped_file_name != NULL)
+            dropped_file_name++;
+          else
+            dropped_file_name = dropped_file;
+          printf("Dropped %s [%s]\n", dropped_file, dropped_file_name);
+          FILE *f = fopen("PCLink.REC", "w");
+          fputs(dropped_file_name, f);
+          fputs(" ", f);
+          fputs(dropped_file, f);
+          fclose(f);
+          SDL_free(dropped_file);
+          break;
+        }
+
         case SDL_MOUSEMOTION: {
           int scaled_x = (int)round((event.motion.x - display_rect.x) / display_scale);
           int scaled_y = (int)round((event.motion.y - display_rect.y) / display_scale);

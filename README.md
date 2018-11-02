@@ -103,6 +103,8 @@ The following keys are available:
 First start the PCLink1 task by middle-clicking on the PCLink1.Run command.
 Transfer files using the pcreceive.sh and pcsend.sh scripts.
 
+You can also drag files onto the emulator window to transfer them into the emulator, if PCLink is running.
+
 Alternatively, use the clipboard integration to exchange text.
 
 
