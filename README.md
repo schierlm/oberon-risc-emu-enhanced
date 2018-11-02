@@ -6,6 +6,7 @@ It adds the following features:
 - [Hardware Enumerator](https://github.com/schierlm/OberonEmulator/blob/master/hardware-enumerator.md) support
 - RISC Interrupt support
 - PCLink works for binary files on Windows platform
+- Use Drag & Drop for sending files to Oberon via PCLink
 
 
 ## Description from the original README
@@ -103,6 +104,8 @@ The following keys are available:
 
 First start the PCLink1 task by middle-clicking on the PCLink1.Run command.
 Transfer files using the pcreceive.sh and pcsend.sh scripts.
+
+You can also drag files onto the emulator window to transfer them into the emulator, if PCLink is running.
 
 Alternatively, use the clipboard integration to exchange text.
 

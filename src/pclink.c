@@ -37,7 +37,7 @@ static const char * SndName = "PCLink.SND";
 static uint8_t mode = 0;
 static int fd = -1;
 static int txcount, rxcount, fnlen, flen;
-static char szFilename[32];
+static char szFilename[32], szPath[261];
 static char buf[257];
 
 static bool GetJob(const char *JobName) {
@@ -46,10 +46,14 @@ static bool GetJob(const char *JobName) {
   FILE * f;
 
   if (stat(JobName, &st) == 0) {
-    if (st.st_size > 0 && st.st_size <= 33) {
+    if (st.st_size > 0 && st.st_size <= 300) {
       f = fopen(JobName, "r");
       if (f) {
-        fscanf(f, "%31s", szFilename);
+        szPath[0] = '\0';
+        fscanf(f, "%31s %260s", szFilename, szPath);
+        if (szPath[0] == '\0') {
+          strcpy(szPath, szFilename);
+        }
         fclose(f);
         res = true; txcount = 0; rxcount = 0; fnlen = (int)strlen(szFilename)+1;
       }
@@ -66,8 +70,8 @@ static uint32_t PCLink_RStat(const struct RISC_Serial *serial) {
 
   if (!mode) {
     if (GetJob(RecName)) {
-      if (stat(szFilename, &st) == 0 && st.st_size >= 0 && st.st_size < 0x1000000) {
-        fd = open(szFilename, O_RDONLY|O_BINARY);
+      if (stat(szPath, &st) == 0 && st.st_size >= 0 && st.st_size < 0x1000000) {
+        fd = open(szPath, O_RDONLY|O_BINARY);
         if (fd != -1) {
           flen = (int)st.st_size; mode = REC;
           printf("PCLink REC Filename: %s size %d\n", szFilename, flen);
@@ -77,7 +81,7 @@ static uint32_t PCLink_RStat(const struct RISC_Serial *serial) {
         unlink(RecName);  // clean up
       }
     } else if (GetJob(SndName)) {
-      fd = open(szFilename, O_CREAT|O_TRUNC|O_RDWR|O_BINARY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+      fd = open(szPath, O_CREAT|O_TRUNC|O_RDWR|O_BINARY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
       if (fd != -1) {
         flen = -1; mode = SND;
         printf("PCLink SND Filename: %s\n", szFilename);
@@ -131,7 +135,7 @@ static void PCLink_TData(const struct RISC_Serial *serial, uint32_t value) {
       if (value != ACK) {
         close(fd); fd = -1;
         if (mode == SND) {
-          unlink(szFilename);  // file not found, delete file created
+          unlink(szPath);  // file not found, delete file created
           unlink(SndName);  // clean up
         } else {
           unlink(RecName);  // clean up
