@@ -86,6 +86,7 @@ Usage: `risc [options] disk-image.dsk`
 * `--rtc` Initialize the memory region starting at 64KB with the current wall clock time.
 * `--size <width>x<height>` Use a non-standard window size.
 * `--color` Use 16-color mode (requires a different Display.Mod)
+* `--hostfs <directory>` export files inside DIRECTORY as HostFS (requires a different inner core on disk)
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.
 

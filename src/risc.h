@@ -22,6 +22,7 @@ void risc_set_serial(struct RISC *risc, const struct RISC_Serial *serial);
 void risc_set_spi(struct RISC *risc, int index, const struct RISC_SPI *spi);
 void risc_set_clipboard(struct RISC *risc, const struct RISC_Clipboard *clipboard);
 void risc_set_switches(struct RISC *risc, int switches);
+void risc_set_host_fs(struct RISC *risc, const struct RISC_HostFS *hostfs);
 
 void risc_reset(struct RISC *risc);
 void risc_run(struct RISC *risc, int cycles);
