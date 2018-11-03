@@ -25,4 +25,8 @@ struct RISC_LED {
   void (*write)(const struct RISC_LED *, uint32_t);
 };
 
+struct RISC_HostFS {
+  void (*write)(const struct RISC_HostFS *, uint32_t, uint32_t *);
+};
+
 #endif  // RISC_IO_H

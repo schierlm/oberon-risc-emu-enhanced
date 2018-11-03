@@ -71,6 +71,7 @@ static struct option long_options[] = {
   { "boot-from-serial", no_argument,       NULL, 'S' },
   { "color",            no_argument,       NULL, 'c' },
   { "memory-factor",    required_argument, NULL, 'M' },
+  { "hostfs",           required_argument, NULL, 'H' },
   { NULL,               no_argument,       NULL, 0   }
 };
 
@@ -96,6 +97,7 @@ static void usage() {
        "  --boot-from-serial    Boot from serial line (disk image not required)\n"
        "  --serial-in FILE      Read serial input from FILE\n"
        "  --serial-out FILE     Write serial output to FILE\n"
+       "  --hostfs DIRECTORY    Use DIRECTORY as HostFS directory\n"
        );
   exit(1);
 }
@@ -167,6 +169,10 @@ int main (int argc, char *argv[]) {
       }
       case 'M': {
         memoryFactor = atoi(optarg);
+        break;
+      }
+      case 'H': {
+        risc_set_host_fs(risc, host_fs_new(optarg));
         break;
       }
       default: {

@@ -49,6 +49,7 @@ struct RISC {
   uint32_t spi_selected;
   const struct RISC_SPI *spi[4];
   const struct RISC_Clipboard *clipboard;
+  const struct RISC_HostFS *hostfs;
 
   bool fb_color;
   int fb_width;   // words
@@ -161,6 +162,10 @@ void risc_scale_memory(struct RISC *risc, int memoryFactor) {
   risc->ROM[372] = (risc->ROM[372] & 0xFFFF0000) | ((memoryFactor * 0x0E7EF0) >> 16);
   risc->ROM[373] = (risc->ROM[373] & 0xFFFF0000) | ((memoryFactor * 0x0E7EF0) & 0x0000FFFF);
   risc->ROM[376] = (risc->ROM[376] & 0xFFFF0000) | (memoryFactor * 8);
+}
+
+void risc_set_host_fs(struct RISC *risc, const struct RISC_HostFS *hostfs) {
+  risc->hostfs = hostfs;
 }
 
 void risc_reset(struct RISC *risc) {
@@ -568,6 +573,13 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
       // Bit 3:   netwerk enable
       // Other bits unused
       risc->spi_selected = value & 3;
+      break;
+    }
+    case 32: {
+      // Host FS
+      if (risc->hostfs) {
+        risc->hostfs->write(risc->hostfs, value, risc->RAM);
+      }
       break;
     }
     case 40: {

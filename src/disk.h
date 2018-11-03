@@ -5,4 +5,6 @@
 
 struct RISC_SPI *disk_new(const char *filename);
 
+struct RISC_HostFS *host_fs_new(const char *directory);
+
 #endif  // DISK_H
