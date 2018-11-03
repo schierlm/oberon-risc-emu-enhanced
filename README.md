@@ -10,6 +10,7 @@ It adds the following features:
 - Truncate filesystem images when requested from within Oberon
 - Provide the current wall clock time via Hardware Enumerator, if enabled
 - 4-bit and 8-bit color modes, with dynamic and seamless resizing
+- HostFS Filesystem
 
 
 ## Description from the original README
@@ -91,6 +92,7 @@ Usage: `risc [options] disk-image.dsk`
 * `--rtc` Provide the current wall clock time via Hardware Enumerator
 * `--size <width>x<height>[x<depth>]` Use a non-standard window size and/or color depth
 * `--dynsize` Allow dynamic screen resize from guest
+* `--hostfs <directory>` export files inside DIRECTORY as HostFS (requires a different inner core on disk)
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.
 

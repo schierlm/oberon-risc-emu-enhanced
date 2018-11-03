@@ -73,6 +73,7 @@ static struct option long_options[] = {
   { "serial-out",       required_argument, NULL, 'O' },
   { "boot-from-serial", no_argument,       NULL, 'S' },
   { "dynsize",          no_argument,       NULL, 'd' },
+  { "hostfs",           required_argument, NULL, 'H' },
   { NULL,               no_argument,       NULL, 0   }
 };
 
@@ -101,6 +102,7 @@ static void usage() {
        "  --boot-from-serial    Boot from serial line (disk image not required)\n"
        "  --serial-in FILE      Read serial input from FILE\n"
        "  --serial-out FILE     Write serial output to FILE\n"
+       "  --hostfs DIRECTORY    Use DIRECTORY as HostFS directory\n"
        );
   exit(1);
 }
@@ -128,7 +130,7 @@ int main (int argc, char *argv[]) {
   bool boot_from_serial = false;
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "z:fLm:s:I:O:Sd", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "z:fLm:s:I:O:SdH:", long_options, NULL)) != -1) {
     switch (opt) {
       case 'z': {
         double x = strtod(optarg, 0);
@@ -194,6 +196,10 @@ int main (int argc, char *argv[]) {
       case 'S': {
         boot_from_serial = true;
         risc_set_switches(risc, 1);
+        break;
+      }
+      case 'H': {
+        risc_set_host_fs(risc, host_fs_new(optarg));
         break;
       }
       default: {
