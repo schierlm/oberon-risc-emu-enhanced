@@ -83,7 +83,9 @@ Usage: `risc [options] disk-image.dsk`
 
 * `--fullscreen` Start the emulator in fullscreen mode.
 * `--size <width>x<height>` Use a non-standard window size.
-* `--color` Use 16-color mode (required a different Display.Mod)
+* `--color` Use 16-color mode (requires a different Display.Mod)
+* `--memory-factor SIZE` use **SIZE** MB of RAM (requires a different Display.Mod)
+* `--hostfs DIRECTORY` export files inside DIRECTORY as HostFS (requires a different inner core on disk)
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.
 
@@ -102,6 +104,8 @@ The following keys are available:
 
 First start the PCLink1 task by middle-clicking on the PCLink1.Run command.
 Transfer files using the pcreceive.sh and pcsend.sh scripts.
+
+You can also drag files onto the emulator window to transfer them into the emulator, if PCLink is running.
 
 Alternatively, use the clipboard integration to exchange text.
 
