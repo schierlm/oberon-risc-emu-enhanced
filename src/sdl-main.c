@@ -65,6 +65,7 @@ static struct option long_options[] = {
   { "zoom",             required_argument, NULL, 'z' },
   { "fullscreen",       no_argument,       NULL, 'f' },
   { "leds",             no_argument,       NULL, 'L' },
+  { "rtc",              no_argument,       NULL, 'r' },
   { "mem",              required_argument, NULL, 'm' },
   { "size",             required_argument, NULL, 's' },
   { "serial-in",        required_argument, NULL, 'I' },
@@ -113,14 +114,14 @@ int main (int argc, char *argv[]) {
     .w = RISC_FRAMEBUFFER_WIDTH,
     .h = RISC_FRAMEBUFFER_HEIGHT
   };
-  bool size_option = false;
+  bool size_option = false, rtc_option = false;
   int mem_option = 0;
   const char *serial_in = NULL;
   const char *serial_out = NULL;
   bool boot_from_serial = false;
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "z:fLm:s:I:O:S", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "z:fLrm:s:I:O:S", long_options, NULL)) != -1) {
     switch (opt) {
       case 'z': {
         double x = strtod(optarg, 0);
@@ -135,6 +136,10 @@ int main (int argc, char *argv[]) {
       }
       case 'L': {
         risc_set_leds(risc, &leds);
+        break;
+      }
+      case 'r': {
+        rtc_option = true;
         break;
       }
       case 'm': {
@@ -172,8 +177,8 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  if (mem_option || size_option) {
-    risc_configure_memory(risc, mem_option, risc_rect.w, risc_rect.h);
+  if (mem_option || size_option || rtc_option) {
+    risc_configure_memory(risc, mem_option, rtc_option, risc_rect.w, risc_rect.h);
   }
 
   if (optind == argc - 1) {

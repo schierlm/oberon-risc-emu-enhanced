@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 #include "risc.h"
 #include "risc-fp.h"
 
@@ -95,7 +96,7 @@ struct RISC *risc_new() {
   return risc;
 }
 
-void risc_configure_memory(struct RISC *risc, int megabytes_ram, int screen_width, int screen_height) {
+void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height) {
   if (megabytes_ram < 1) {
     megabytes_ram = 1;
   }
@@ -123,6 +124,18 @@ void risc_configure_memory(struct RISC *risc, int megabytes_ram, int screen_widt
   risc->ROM[373] = 0x41160000 + (mem_lim & 0x0000FFFF);
   uint32_t stack_org = risc->display_start / 2;
   risc->ROM[376] = 0x61000000 + (stack_org >> 16);
+
+  // patch the time for RTC option
+  if (rtc_option) {
+    time_t now;
+    time(&now);
+    struct tm *t = localtime(&now);
+    int clock = ((t->tm_year % 100) * 16 + t->tm_mon + 1) * 32 + t->tm_mday;
+    clock = ((clock * 32 + t->tm_hour) * 64 + t->tm_min) * 64 + t->tm_sec;
+    risc->RAM[0x4000] = 0x54696D65; // Time
+    risc->RAM[0x4001] = 0; // SDL_GetTicks starts at zero
+    risc->RAM[0x4002] = clock;
+  }
 
   // Inform the display driver of the framebuffer layout.
   // This isn't a very pretty mechanism, but this way our disk images
