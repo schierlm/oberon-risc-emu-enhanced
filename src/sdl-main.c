@@ -114,7 +114,7 @@ int main (int argc, char *argv[]) {
     .w = RISC_FRAMEBUFFER_WIDTH,
     .h = RISC_FRAMEBUFFER_HEIGHT
   };
-  bool size_option = false;
+  bool size_option = false, rtc_option = false;
   int mem_option = 0;
   const char *serial_in = NULL;
   const char *serial_out = NULL;
@@ -173,8 +173,8 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  if (mem_option || size_option) {
-    risc_configure_memory(risc, mem_option, risc_rect.w, risc_rect.h);
+  if (mem_option || size_option || rtc_option) {
+    risc_configure_memory(risc, mem_option, rtc_option, risc_rect.w, risc_rect.h);
   }
 
   if (optind == argc - 1) {

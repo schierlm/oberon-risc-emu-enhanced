@@ -16,7 +16,7 @@ struct Damage {
 };
 
 struct RISC *risc_new(void);
-void risc_configure_memory(struct RISC *risc, int megabytes_ram, int screen_width, int screen_height);
+void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height);
 void risc_set_leds(struct RISC *risc, const struct RISC_LED *leds);
 void risc_set_serial(struct RISC *risc, const struct RISC_Serial *serial);
 void risc_set_spi(struct RISC *risc, int index, const struct RISC_SPI *spi);

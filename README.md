@@ -8,6 +8,7 @@ It adds the following features:
 - PCLink works for binary files on Windows platform
 - Use Drag & Drop for sending files to Oberon via PCLink
 - Truncate filesystem images when requested from within Oberon
+- Provide the current wall clock time via Hardware Enumerator, if enabled
 
 
 ## Description from the original README
@@ -86,6 +87,7 @@ Usage: `risc [options] disk-image.dsk`
 
 * `--fullscreen` Start the emulator in fullscreen mode.
 * `--mem <megs>` Give the system more than 1 megabyte of RAM.
+* `--rtc` Provide the current wall clock time via Hardware Enumerator
 * `--size <width>x<height>` Use a non-standard window size.
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 #include "risc.h"
 #include "risc-fp.h"
 
@@ -52,6 +53,7 @@ struct RISC {
   uint32_t spi_selected;
   const struct RISC_SPI *spi[4];
   const struct RISC_Clipboard *clipboard;
+  uint32_t initial_clock;
 
   int fb_width;   // words
   int fb_height;  // lines
@@ -91,6 +93,12 @@ struct RISC *risc_new() {
   risc->display_start = DefaultDisplayStart;
   risc->fb_width = RISC_FRAMEBUFFER_WIDTH / 32;
   risc->fb_height = RISC_FRAMEBUFFER_HEIGHT;
+  time_t now;
+  time(&now);
+  struct tm *t = localtime(&now);
+  int clock = ((t->tm_year % 100) * 16 + t->tm_mon + 1) * 32 + t->tm_mday;
+  clock = ((clock * 32 + t->tm_hour) * 64 + t->tm_min) * 64 + t->tm_sec;
+  risc->initial_clock = clock;
   risc->damage = (struct Damage){
     .x1 = 0,
     .y1 = 0,
@@ -103,7 +111,7 @@ struct RISC *risc_new() {
   return risc;
 }
 
-void risc_configure_memory(struct RISC *risc, int megabytes_ram, int screen_width, int screen_height) {
+void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height) {
   if (megabytes_ram < 1) {
     megabytes_ram = 1;
   }
@@ -622,6 +630,7 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('S','P','I','f');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('M','s','K','b');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('R','s','e','t');
+        risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','R','T','C');
         if (risc->leds) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('L','E','D','s');
         }
@@ -682,6 +691,10 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         break;
       case HW_ENUM_ID('R','s','e','t'):
         risc->hwenum_buf[risc->hwenum_cnt++] = ROMStart; // Soft reset vector
+        break;
+      case HW_ENUM_ID('v','R','T','C'):
+        risc->hwenum_buf[risc->hwenum_cnt++] = 0; // SDL_GetTicks starts at zero
+        risc->hwenum_buf[risc->hwenum_cnt++] = risc->initial_clock;
         break;
       }
       break;
