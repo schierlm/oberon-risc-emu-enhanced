@@ -188,7 +188,13 @@ static void write_sector(FILE *f, uint32_t buf[static 128]) {
       bytes[i*4+2] = (uint8_t)(buf[i] >> 16);
       bytes[i*4+3] = (uint8_t)(buf[i] >> 24);
     }
-    fwrite(bytes, 512, 1, f);
+    if (memcmp(bytes, "!!TRIM!!----", 12) == 0 && memcmp(bytes + 500, "----!!TRIM!!", 12) == 0) {
+      fflush(f);
+      ftruncate(fileno(f), ftell(f));
+      f = freopen(NULL, "rb+", f);
+    } else {
+      fwrite(bytes, 512, 1, f);
+    }
   }
 }
 
