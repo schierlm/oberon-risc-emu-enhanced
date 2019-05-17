@@ -7,6 +7,7 @@ It adds the following features:
 - RISC Interrupt support
 - PCLink works for binary files on Windows platform
 - Use Drag & Drop for sending files to Oberon via PCLink
+- Truncate filesystem images when requested from within Oberon
 
 
 ## Description from the original README
