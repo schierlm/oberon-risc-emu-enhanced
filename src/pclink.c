@@ -27,6 +27,10 @@
 #define S_IWOTH 0
 #endif
 
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
 
 static const char * RecName = "PCLink.REC";  // e.g. echo Test.Mod > PCLink.REC
 static const char * SndName = "PCLink.SND";
@@ -63,7 +67,7 @@ static uint32_t PCLink_RStat(const struct RISC_Serial *serial) {
   if (!mode) {
     if (GetJob(RecName)) {
       if (stat(szFilename, &st) == 0 && st.st_size >= 0 && st.st_size < 0x1000000) {
-        fd = open(szFilename, O_RDONLY);
+        fd = open(szFilename, O_RDONLY|O_BINARY);
         if (fd != -1) {
           flen = (int)st.st_size; mode = REC;
           printf("PCLink REC Filename: %s size %d\n", szFilename, flen);
@@ -73,7 +77,7 @@ static uint32_t PCLink_RStat(const struct RISC_Serial *serial) {
         unlink(RecName);  // clean up
       }
     } else if (GetJob(SndName)) {
-      fd = open(szFilename, O_CREAT|O_TRUNC|O_RDWR, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+      fd = open(szFilename, O_CREAT|O_TRUNC|O_RDWR|O_BINARY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
       if (fd != -1) {
         flen = -1; mode = SND;
         printf("PCLink SND Filename: %s\n", szFilename);
