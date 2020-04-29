@@ -243,8 +243,8 @@ static void hostfs_write(const struct RISC_HostFS *hostfs_hostfs, uint32_t value
     case 1: { // FileDir.Enumerate Start
       strncpy(hostfs->current_prefix,  (char*) (ram+offset+2), sizeof(hostfs->current_prefix)-1);
       rewinddir(hostfs->directory);
-      // FALL THROUGH
     }
+    // FALL THROUGH
     case 2: { // FileDir.Enumerate Next
       struct dirent *entry = readdir(hostfs->directory);
       while(entry != NULL) {
