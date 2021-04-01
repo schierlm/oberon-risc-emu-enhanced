@@ -25,6 +25,7 @@ void risc_set_switches(struct RISC *risc, int switches);
 void risc_set_host_fs(struct RISC *risc, const struct RISC_HostFS *hostfs);
 
 void risc_reset(struct RISC *risc);
+void risc_trigger_interrupt(struct RISC *risc); 
 void risc_run(struct RISC *risc, int cycles);
 void risc_set_time(struct RISC *risc, uint32_t tick);
 void risc_mouse_moved(struct RISC *risc, int mouse_x, int mouse_y);
