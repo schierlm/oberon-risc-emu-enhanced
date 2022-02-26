@@ -72,6 +72,8 @@ struct RISC {
   uint32_t *RAM;
   uint32_t ROM[ROMWords];
   uint32_t Palette[256];
+  char debug_buffer[512];
+  uint32_t debug_buffer_index;
 };
 
 enum {
@@ -782,6 +784,7 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('M','s','K','b');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('R','s','e','t');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','R','T','C');
+        risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('D','b','g','C');
         if (risc->leds) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('L','E','D','s');
         }
@@ -937,6 +940,9 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         if (risc->hosttransfer) {
           risc->hwenum_buf[risc->hwenum_cnt++] = -32; // MMIO host transfer address
         }
+        break;
+      case HW_ENUM_ID('D','b','g','C'):
+        risc->hwenum_buf[risc->hwenum_cnt++] = -12; // MMIO debug console address
         break;
       case HW_ENUM_ID('R','s','e','t'):
         risc->hwenum_buf[risc->hwenum_cnt++] = ROMStart; // Soft reset vector

@@ -12,6 +12,7 @@ It adds the following features:
 - 4-bit and 8-bit color modes, with dynamic and seamless resizing
 - HostFS Filesystem
 - Host Transfer support
+- Debug Console support (a bit more convenient than 8 LEDs for kernel debugging)
 
 
 ## Description from the original README
