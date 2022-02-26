@@ -24,6 +24,7 @@ static uint32_t BLACK = 0x657b83, WHITE = 0xfdf6e3;
 //static uint32_t BLACK = 0x0000FF, WHITE = 0xFFFF00;
 //static uint32_t BLACK = 0x000000, WHITE = 0x00FF00;
 
+#define MAX_MODE_COUNT 32
 #define MAX_HEIGHT 2048
 #define MAX_WIDTH  2048
 
@@ -32,7 +33,7 @@ static int clamp(int x, int min, int max);
 static enum Action map_keyboard_event(SDL_KeyboardEvent *event);
 static void show_leds(const struct RISC_LED *leds, uint32_t value);
 static double scale_display(SDL_Window *window, const SDL_Rect *risc_rect, SDL_Rect *display_rect);
-static void update_texture(struct RISC *risc, SDL_Texture *texture, const SDL_Rect *risc_rect, bool color);
+static void update_texture(struct RISC *risc, SDL_Texture *texture, const SDL_Rect *risc_rect, int depth);
 
 enum Action {
   ACTION_OBERON_INPUT,
@@ -71,7 +72,7 @@ static struct option long_options[] = {
   { "serial-in",        required_argument, NULL, 'I' },
   { "serial-out",       required_argument, NULL, 'O' },
   { "boot-from-serial", no_argument,       NULL, 'S' },
-  { "color",            no_argument,       NULL, 'c' },
+  { "dynsize",          no_argument,       NULL, 'd' },
   { NULL,               no_argument,       NULL, 0   }
 };
 
@@ -92,8 +93,11 @@ static void usage() {
        "  --zoom REAL           Scale the display in windowed mode\n"
        "  --leds                Log LED state on stdout\n"
        "  --mem MEGS            Set memory size\n"
-       "  --color               Use 16 color mode (requires modified Display.Mod)\n"
-       "  --size WIDTHxHEIGHT   Set framebuffer size\n"
+       "  --dynsize             Allow dynamic screen resize from guest\n"
+       "  --size WIDTHxHEIGHT[xDEPTH][,...]\n"
+       "                        Set framebuffer size or multiple resolutions\n"
+       "                        DEPTH has to be 1, 4 or 8, and multiple modes'\n"
+       "                        depths must be ascending order.\n"
        "  --boot-from-serial    Boot from serial line (disk image not required)\n"
        "  --serial-in FILE      Read serial input from FILE\n"
        "  --serial-out FILE     Write serial output to FILE\n"
@@ -106,24 +110,25 @@ int main (int argc, char *argv[]) {
   risc_set_serial(risc, &pclink);
   risc_set_clipboard(risc, &sdl_clipboard);
 
+
   struct RISC_LED leds = {
     .write = show_leds
   };
 
   bool fullscreen = false;
   double zoom = 0;
-  SDL_Rect risc_rect = {
-    .w = RISC_FRAMEBUFFER_WIDTH,
-    .h = RISC_FRAMEBUFFER_HEIGHT
-  };
-  bool size_option = false, rtc_option = false, color_option = false;
-  int mem_option = 0;
+  struct DisplayMode all_modes[MAX_MODE_COUNT];
+  struct DisplayMode *current_mode;
+  uint32_t previous_mode_index;
+  SDL_Rect risc_rect = {};
+  bool dynsize_option = false, seamless = false, resizable = false;
+  int mem_option = 0, mode_count = 0, last_depth = 1;
   const char *serial_in = NULL;
   const char *serial_out = NULL;
   bool boot_from_serial = false;
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "z:fLm:s:I:O:Sc", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "z:fLm:s:I:O:Sd", long_options, NULL)) != -1) {
     switch (opt) {
       case 'z': {
         double x = strtod(optarg, 0);
@@ -147,17 +152,35 @@ int main (int argc, char *argv[]) {
         break;
       }
       case 's': {
-        int w, h;
-        if (sscanf(optarg, "%dx%d", &w, &h) != 2) {
-          usage();
+        int w, h, d, len;
+        char* ptr = optarg;
+        while(*ptr != '\0') {
+          if (sscanf(ptr, "%dx%d%n", &w, &h, &len) != 2) {
+            usage();
+          }
+          d = 1;
+          ptr += len;
+          if (*ptr == 'x') {
+            if (sscanf(ptr, "x%d%n", &d, &len) != 1) {
+              usage();
+            }
+            ptr += len;
+          }
+          if ((d < last_depth) || (d != 1 && d != 4 && d != 8)) {
+            usage();
+          }
+          while(*ptr == ',' || *ptr == ' ') ptr++;
+          all_modes[mode_count].width = clamp(w, 32, MAX_WIDTH) & ~31;
+          all_modes[mode_count].height = clamp(h, 32, MAX_HEIGHT);
+          all_modes[mode_count].depth = d;
+          all_modes[mode_count].index = mode_count;
+          last_depth = d;
+          mode_count++;
         }
-        risc_rect.w = clamp(w, 32, MAX_WIDTH) & ~31;
-        risc_rect.h = clamp(h, 32, MAX_HEIGHT);
-        size_option = true;
         break;
       }
-      case 'c': {
-        color_option = true;
+      case 'd': {
+        dynsize_option = true;
         break;
       }
       case 'I': {
@@ -179,8 +202,22 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  if (mem_option || size_option || rtc_option || color_option) {
-    risc_configure_memory(risc, mem_option, rtc_option, risc_rect.w, risc_rect.h, color_option);
+  if (mem_option || mode_count != 0 || dynsize_option) {
+    if (mode_count == 0) {
+      all_modes[0].width = RISC_FRAMEBUFFER_WIDTH;
+      all_modes[0].height = RISC_FRAMEBUFFER_HEIGHT;
+      all_modes[0].depth = 1;
+      all_modes[0].index = 0;
+      mode_count = 1;
+    }
+    all_modes[mode_count].width = 0;
+    all_modes[mode_count].height = 0;
+    all_modes[mode_count].depth = 0;
+    all_modes[mode_count].index = -1;
+    risc_configure_memory(risc, mem_option, all_modes, dynsize_option);
+    if (dynsize_option) {
+      risc_size_hint(risc, all_modes[0].width, all_modes[0].height);
+    }
   }
 
   if (optind == argc - 1) {
@@ -201,6 +238,11 @@ int main (int argc, char *argv[]) {
     }
     risc_set_serial(risc, raw_serial_new(serial_in, serial_out));
   }
+
+  current_mode = risc_get_display_mode(risc, &seamless);
+  risc_rect.w = current_mode->width;
+  risc_rect.h = current_mode->height;
+  previous_mode_index = current_mode->index;
 
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     fail(1, "Unable to initialize SDL: %s", SDL_GetError());
@@ -251,7 +293,7 @@ int main (int argc, char *argv[]) {
 
   SDL_Rect display_rect;
   double display_scale = scale_display(window, &risc_rect, &display_rect);
-  update_texture(risc, texture, &risc_rect, color_option);
+  update_texture(risc, texture, &risc_rect, current_mode->depth);
   SDL_ShowWindow(window);
   SDL_RenderClear(renderer);
   SDL_RenderCopy(renderer, texture, &risc_rect, &display_rect);
@@ -273,6 +315,11 @@ int main (int argc, char *argv[]) {
         case SDL_WINDOWEVENT: {
           if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
             display_scale = scale_display(window, &risc_rect, &display_rect);
+            if (dynsize_option) {
+              int win_w, win_h;
+              SDL_GetWindowSize(window, &win_w, &win_h);
+              risc_size_hint(risc, (int)(win_w/zoom), (int)(win_h/zoom));
+            }
           }
           break;
         }
@@ -371,7 +418,24 @@ int main (int argc, char *argv[]) {
       }
       risc_trigger_interrupt(risc);
     }
-    update_texture(risc, texture, &risc_rect, color_option);
+    current_mode = risc_get_display_mode(risc, &seamless);
+    if (current_mode != NULL && current_mode->index != previous_mode_index) {
+      SDL_DestroyTexture(texture);
+      risc_rect.w = current_mode->width;
+      risc_rect.h = current_mode->height;
+      previous_mode_index = current_mode->index;
+      SDL_SetWindowSize(window, (int)(risc_rect.w * zoom), (int)(risc_rect.h * zoom));
+      texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, risc_rect.w, risc_rect.h);
+      if (texture == NULL) {
+        fail(1, "Could not create texture: %s", SDL_GetError());
+      }
+      display_scale = scale_display(window, &risc_rect, &display_rect);
+    }
+    if (seamless && !resizable) {
+      SDL_SetWindowResizable(window, true);
+      resizable = true;
+    }
+    update_texture(risc, texture, &risc_rect, current_mode->depth);
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, &risc_rect, &display_rect);
     SDL_RenderPresent(renderer);
@@ -453,21 +517,27 @@ static double scale_display(SDL_Window *window, const SDL_Rect *risc_rect, SDL_R
 // allocate three megabyte on the stack.
 static uint32_t pixel_buf[MAX_WIDTH * MAX_HEIGHT];
 
-static void update_texture(struct RISC *risc, SDL_Texture *texture, const SDL_Rect *risc_rect, bool color) {
+static void update_texture(struct RISC *risc, SDL_Texture *texture, const SDL_Rect *risc_rect, int depth) {
   struct Damage damage = risc_get_framebuffer_damage(risc);
   if (damage.y1 <= damage.y2) {
     uint32_t *in = risc_get_framebuffer_ptr(risc);
-    uint32_t *pal = color ? risc_get_palette_ptr(risc) : NULL;
+    uint32_t *pal = depth > 1 ? risc_get_palette_ptr(risc) : NULL;
     uint32_t out_idx = 0;
 
     for (int line = damage.y2; line >= damage.y1; line--) {
-      int line_start = line * (risc_rect->w / (color ? 8 : 32));
+      int line_start = line * (risc_rect->w / (32 / depth));
       for (int col = damage.x1; col <= damage.x2; col++) {
         uint32_t pixels = in[line_start + col];
-        if (color) {
+        if (depth == 4) {
           for (int b = 0; b < 8; b++) {
             pixel_buf[out_idx] = pal[pixels & 0xF];
             pixels >>= 4;
+            out_idx++;
+          }
+        } else if (depth == 8) {
+          for (int b = 0; b < 4; b++) {
+            pixel_buf[out_idx] = pal[pixels & 0xFF];
+            pixels >>= 8;
             out_idx++;
           }
         } else {
@@ -481,9 +551,9 @@ static void update_texture(struct RISC *risc, SDL_Texture *texture, const SDL_Re
     }
 
     SDL_Rect rect = {
-      .x = damage.x1 * (color ? 8 : 32),
+      .x = damage.x1 * (32 / depth),
       .y = risc_rect->h - damage.y2 - 1,
-      .w = (damage.x2 - damage.x1 + 1) * (color ? 8 : 32),
+      .w = (damage.x2 - damage.x1 + 1) * (32 / depth),
       .h = (damage.y2 - damage.y1 + 1)
     };
     SDL_UpdateTexture(texture, &rect, pixel_buf, rect.w * 4);
