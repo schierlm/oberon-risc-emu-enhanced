@@ -25,7 +25,7 @@
 #define ROMStart     0xFFFFF800
 #define ROMWords     512
 #define IOStart      0xFFFFFFC0
-#define PaletteStart 0xFFFFFF80
+#define PaletteStart 0xFFFFFB00
 
 #define HW_ENUM_ID(a,b,c,d) (((a) << 24) | ((b) << 16) | ((c) << 8) | (d))
 
@@ -55,10 +55,14 @@ struct RISC {
   const struct RISC_SPI *spi[4];
   const struct RISC_Clipboard *clipboard;
   const struct RISC_HostFS *hostfs;
+  struct DisplayMode dyn_mode_slots[2];
+  struct DisplayMode *modes;
+  struct DisplayMode *current_mode;
+  int current_mode_span; // in words
+  int modes_by_depth[3];
+  bool screen_dynsize, screen_seamless;
+  uint32_t initial_clock;
 
-  bool fb_color;
-  int fb_width;   // words
-  int fb_height;  // lines
   struct Damage damage;
 
   int32_t hwenum_buf[16];
@@ -66,7 +70,9 @@ struct RISC {
 
   uint32_t *RAM;
   uint32_t ROM[ROMWords];
-  uint32_t Palette[16];
+  uint32_t Palette[256];
+  char debug_buffer[512];
+  uint32_t debug_buffer_index;
 };
 
 enum {
@@ -99,13 +105,26 @@ struct RISC *risc_new() {
   struct RISC *risc = calloc(1, sizeof(*risc));
   risc->mem_size = DefaultMemSize;
   risc->display_start = DefaultDisplayStart;
-  risc->fb_width = RISC_FRAMEBUFFER_WIDTH / 32;
-  risc->fb_height = RISC_FRAMEBUFFER_HEIGHT;
+  risc->modes = risc->dyn_mode_slots;
+  risc->modes[0] = (struct DisplayMode){
+    .index = 0, .width = RISC_FRAMEBUFFER_WIDTH, .height = RISC_FRAMEBUFFER_HEIGHT, .depth = 1
+  };
+  risc->modes[1] = (struct DisplayMode){
+    .index = -1, .width = 0, .height = 0, .depth = 0
+  };
+  risc->current_mode = risc->modes;
+  risc->current_mode_span = RISC_FRAMEBUFFER_WIDTH / 32;
+  time_t now;
+  time(&now);
+  struct tm *t = localtime(&now);
+  int clock = ((t->tm_year % 100) * 16 + t->tm_mon + 1) * 32 + t->tm_mday;
+  clock = ((clock * 32 + t->tm_hour) * 64 + t->tm_min) * 64 + t->tm_sec;
+  risc->initial_clock = clock;
   risc->damage = (struct Damage){
     .x1 = 0,
     .y1 = 0,
-    .x2 = risc->fb_width - 1,
-    .y2 = risc->fb_height - 1
+    .x2 = risc->current_mode_span - 1,
+    .y2 = risc->current_mode->height - 1
   };
   risc->RAM = calloc(1, risc->mem_size);
   memcpy(risc->ROM, bootloader, sizeof(risc->ROM));
@@ -113,31 +132,58 @@ struct RISC *risc_new() {
   return risc;
 }
 
-void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option, int screen_width, int screen_height, bool screen_color) {
+void risc_configure_memory(struct RISC *risc, int megabytes_ram, struct DisplayMode *modes, bool screen_dynsize) {
   if (megabytes_ram < 1) {
     megabytes_ram = 1;
   }
-  if (megabytes_ram > 32) {
-    megabytes_ram = 32;
+  if (megabytes_ram > 64) {
+    megabytes_ram = 64;
   }
 
   risc->display_start = megabytes_ram << 20;
-  risc->mem_size = risc->display_start + (screen_width * screen_height) / 8;
-  risc->fb_color = screen_color;
-  risc->fb_width = screen_width / 32;
-  risc->fb_height = screen_height;
-  if (screen_color) {
-    risc->fb_width = screen_width / 8;
-    risc->mem_size = risc->display_start + (screen_width * screen_height) / 2;
-    memcpy(risc->Palette, default_palette, sizeof(risc->Palette));
+  int framebuffer_size = 0, max_depth = 1;
+  struct DisplayMode *mode = modes;
+  if (screen_dynsize) {
+    framebuffer_size = 2048 * 2048;
   }
+  while (mode->width != 0) {
+    if (mode->depth == 1) risc->modes_by_depth[0]++;
+    if (mode->depth == 4) risc->modes_by_depth[1]++;
+    if (mode->depth == 8) risc->modes_by_depth[2]++;
+    int mode_framebuffer_size = mode->width * mode->height / (8 / mode->depth);
+    if (mode_framebuffer_size > framebuffer_size)
+      framebuffer_size = mode_framebuffer_size;
+    if (mode->depth > max_depth)
+      max_depth = mode->depth;
+    mode++;
+  }
+  risc->mem_size = risc->display_start + framebuffer_size;
+  if (max_depth > 1) {
+    memcpy(risc->Palette, default_palette, sizeof(default_palette));
+    if (max_depth == 8) {
+      for(int i=16; i < 40; i++) {
+        risc->Palette[i] = (i-15) * 10 * 0x010101;
+      }
+      int pos = 40;
+      for(int i=0; i<6; i++) {
+        for(int j=0; j<6; j++) {
+          for (int k=0; k<6; k++) {
+            risc->Palette[pos++] = i * 0x330000 + j * 0x3300 + k * 0x33;
+          }
+        }
+      }
+    }
+  }
+  risc->modes = modes;
+  risc->current_mode = modes;
+  risc->current_mode_span = risc->current_mode->width / (32 / risc->current_mode->depth);
   risc->damage = (struct Damage){
     .x1 = 0,
     .y1 = 0,
-    .x2 = risc->fb_width - 1,
-    .y2 = risc->fb_height - 1
+    .x2 = risc->current_mode_span - 1,
+    .y2 = risc->current_mode->height - 1
   };
-
+  risc->screen_dynsize = screen_dynsize;
   free(risc->RAM);
   risc->RAM = calloc(1, risc->mem_size);
 
@@ -147,26 +193,6 @@ void risc_configure_memory(struct RISC *risc, int megabytes_ram, bool rtc_option
   risc->ROM[373] = 0x41160000 + (mem_lim & 0x0000FFFF);
   uint32_t stack_org = risc->display_start / 2;
   risc->ROM[376] = 0x61000000 + (stack_org >> 16);
-
-  // patch the time for RTC option
-  if (rtc_option) {
-    time_t now;
-    time(&now);
-    struct tm *t = localtime(&now);
-    int clock = ((t->tm_year % 100) * 16 + t->tm_mon + 1) * 32 + t->tm_mday;
-    clock = ((clock * 32 + t->tm_hour) * 64 + t->tm_min) * 64 + t->tm_sec;
-    risc->RAM[0x4000] = 0x54696D65; // Time
-    risc->RAM[0x4001] = 0; // SDL_GetTicks starts at zero
-    risc->RAM[0x4002] = clock;
-  }
-
-  // Inform the display driver of the framebuffer layout.
-  // This isn't a very pretty mechanism, but this way our disk images
-  // should still boot on the standard FPGA system.
-  risc->RAM[DefaultDisplayStart/4] = screen_color ? 0x436F537A : 0x53697A67;
-  risc->RAM[DefaultDisplayStart/4+1] = screen_width;
-  risc->RAM[DefaultDisplayStart/4+2] = screen_height;
-  risc->RAM[DefaultDisplayStart/4+3] = risc->display_start;
 
   risc_reset(risc);
 }
@@ -467,9 +493,9 @@ static uint8_t risc_load_byte(struct RISC *risc, uint32_t address) {
 }
 
 static void risc_update_damage(struct RISC *risc, int w) {
-  int row = w / risc->fb_width;
-  int col = w % risc->fb_width;
-  if (row < risc->fb_height) {
+  int row = w / risc->current_mode_span;
+  int col = w % risc->current_mode_span;
+  if (row < risc->current_mode->height) {
     if (col < risc->damage.x1) {
       risc->damage.x1 = col;
     }
@@ -509,7 +535,7 @@ static void risc_store_byte(struct RISC *risc, uint32_t address, uint8_t value) 
 }
 
 static uint32_t risc_load_io(struct RISC *risc, uint32_t address) {
-  if (risc->fb_color && address < IOStart && address >= PaletteStart) {
+  if (address >= PaletteStart && address < PaletteStart + 0x400) {
     return risc->Palette[(address - PaletteStart)/4];
   }
   switch (address - IOStart) {
@@ -584,6 +610,10 @@ static uint32_t risc_load_io(struct RISC *risc, uint32_t address) {
       }
       return 0;
     }
+    case 48: {
+      // Screen mode
+      return risc->current_mode->index;
+    }
     case 60: {
       // hardware enumerator
       if (risc->hwenum_idx < risc->hwenum_cnt) {
@@ -598,13 +628,13 @@ static uint32_t risc_load_io(struct RISC *risc, uint32_t address) {
 }
 
 static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
-  if (risc->fb_color && address < IOStart && address >= PaletteStart) {
+  if (address >= PaletteStart && address < PaletteStart + 0x400) {
     risc->Palette[(address - PaletteStart)/4] = value;
     risc->damage = (struct Damage){
       .x1 = 0,
       .y1 = 0,
-      .x2 = risc->fb_width - 1,
-      .y2 = risc->fb_height - 1
+      .x2 = risc->current_mode_span - 1,
+      .y2 = risc->current_mode->height - 1
     };
     return;
   }
@@ -661,6 +691,59 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
       }
       break;
     }
+    case 48: {
+      // mode switch
+      bool found = false;
+      struct DisplayMode *mode = risc->modes;
+      while (mode->width != 0) {
+        if (mode->index == value) {
+          risc->current_mode = mode;
+          risc->current_mode_span = risc->current_mode->width / (32 / risc->current_mode->depth);
+          found = true;
+          break;
+        }
+        mode++;
+      }
+      risc->screen_seamless = false;
+      if (!found && risc->screen_dynsize) {
+        unsigned int mode = value >> 30;
+        unsigned int width = (value >> 15) & ((1 << 15) - 1);
+        unsigned int height = (value) & ((1 << 15) - 1);
+        if (width == 0 && height == 0) {
+          risc->screen_seamless = true;
+          width = risc->dyn_mode_slots[1].width;
+          height = risc->dyn_mode_slots[1].height;
+          width = width / 32 * 32;
+          if (width < 64) width = 64;
+          if (height < 64) height = 64;
+          if (width > 2048) width = 2048;
+          if (height > 2048) height = 2048;
+          value = (mode << 30) | (width << 15) | height;
+        }
+        if (width <= 2048 && width % 32 == 0 && height <= 2045 && mode >=1 && mode <=3) {
+          risc->current_mode = &risc->dyn_mode_slots[0];
+          risc->current_mode->index = value;
+          risc->current_mode->width = width;
+          risc->current_mode->height = height;
+          risc->current_mode->depth  = mode == 1 ? 1 : mode == 2 ? 8 : 4;
+          risc->current_mode_span = width / (32 / risc->current_mode->depth);
+        }
+      }
+      break;
+    }
+    case 52: {
+      // Debug console
+      if (value == 0 || risc->debug_buffer_index == 511) {
+        risc->debug_buffer[risc->debug_buffer_index] = '\0';
+        printf("%s", risc->debug_buffer);
+        risc->debug_buffer_index = 0;
+      }
+      if (value != 0) {
+        if (value == '\r') value = '\n';
+        risc->debug_buffer[risc->debug_buffer_index++] = (char) value;
+      }
+      break;
+    }
     case 60: {
       // hardware enumerator
       risc->hwenum_cnt = 0;
@@ -668,12 +751,31 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
       switch(value) {
       case 0:
         risc->hwenum_buf[risc->hwenum_cnt++] = 1; // version
-        risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('m','V','i','d');
+        if (risc->modes_by_depth[0] > 0) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('m','V','i','d');
+          if (risc->screen_dynsize) {
+            risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('m','D','y','n');
+          }
+        }
+        if (risc->modes_by_depth[1] > 0) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('1','6','c','V');
+          if (risc->screen_dynsize) {
+            risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('1','6','c','D');
+          }
+        }
+        if (risc->modes_by_depth[2] > 0) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('8','b','c','V');
+          if (risc->screen_dynsize) {
+            risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('8','b','c','D');
+          }
+        }
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('T','i','m','r');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('S','w','t','c');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('S','P','I','f');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('M','s','K','b');
         risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('R','s','e','t');
+        risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','R','T','C');
+        risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('D','b','g','C');
         if (risc->leds) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('L','E','D','s');
         }
@@ -683,14 +785,99 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         if (risc->clipboard) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','C','l','p');
         }
+        if (risc->hostfs) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('H','s','F','s');
+        }
         break;
       case HW_ENUM_ID('m','V','i','d'):
-        risc->hwenum_buf[risc->hwenum_cnt++] = 1; // number of modes
-        risc->hwenum_buf[risc->hwenum_cnt++] = 0; // no mode switching supported
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 32; // screen width
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_height; // screen height
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->fb_width * 4; // scanline span
-        risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+        if (risc->modes_by_depth[0] > 0) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->modes_by_depth[0]; // number of modes
+          risc->hwenum_buf[risc->hwenum_cnt++] = -16; // mode switching MMIO address
+          struct DisplayMode *mode = risc->modes;
+          while (mode->width != 0) {
+            if (mode->depth == 1) {
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->width; // screen width
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->height; // screen height
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->width / 8; // scanline span
+              risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+            }
+            mode++;
+          }
+        }
+        break;
+      case HW_ENUM_ID('m','D','y','n'):
+        if (risc->modes_by_depth[0] > 0 && risc->screen_dynsize) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -16; // mode switching MMIO address
+          risc->hwenum_buf[risc->hwenum_cnt++] = 2048; // maximum width
+          risc->hwenum_buf[risc->hwenum_cnt++] = 2048; // maximum height
+          risc->hwenum_buf[risc->hwenum_cnt++] = 32; // width increment
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // height increment
+          risc->hwenum_buf[risc->hwenum_cnt++] = -1; // dynamic scan line span
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // seamless resize
+        }
+        break;
+      case HW_ENUM_ID('1','6','c','V'):
+        if (risc->modes_by_depth[1] > 0) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->modes_by_depth[1]; // number of modes
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->modes_by_depth[0]; // first mode
+          risc->hwenum_buf[risc->hwenum_cnt++] = -16; // mode switching MMIO address
+          risc->hwenum_buf[risc->hwenum_cnt++] = PaletteStart; // palette address
+          struct DisplayMode *mode = risc->modes;
+          while (mode->width != 0) {
+            if (mode->depth == 4) {
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->width; // screen width
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->height; // screen height
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->width / 2; // scanline span
+              risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+            }
+            mode++;
+          }
+        }
+        break;
+      case HW_ENUM_ID('1','6','c','D'):
+        if (risc->modes_by_depth[1] > 0 && risc->screen_dynsize) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -16; // mode switching MMIO address
+          risc->hwenum_buf[risc->hwenum_cnt++] = PaletteStart; // palette address
+          risc->hwenum_buf[risc->hwenum_cnt++] = 2048; // maximum width
+          risc->hwenum_buf[risc->hwenum_cnt++] = 2048; // maximum height
+          risc->hwenum_buf[risc->hwenum_cnt++] = 32; // width increment
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // height increment
+          risc->hwenum_buf[risc->hwenum_cnt++] = -1; // dynamic scan line span
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // seamless resize
+        }
+        break;
+      case HW_ENUM_ID('8','b','c','V'):
+        if (risc->modes_by_depth[2] > 0) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->modes_by_depth[2]; // number of modes
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->modes_by_depth[0] + risc->modes_by_depth[1]; // first mode
+          risc->hwenum_buf[risc->hwenum_cnt++] = -16; // mode switching MMIO address
+          risc->hwenum_buf[risc->hwenum_cnt++] = PaletteStart; // palette address
+          struct DisplayMode *mode = risc->modes;
+          while (mode->width != 0) {
+            if (mode->depth == 8) {
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->width; // screen width
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->height; // screen height
+              risc->hwenum_buf[risc->hwenum_cnt++] = mode->width; // scanline span
+              risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+            }
+            mode++;
+          }
+        }
+        break;
+      case HW_ENUM_ID('8','b','c','D'):
+        if (risc->modes_by_depth[1] > 0 && risc->screen_dynsize) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -16; // mode switching MMIO address
+          risc->hwenum_buf[risc->hwenum_cnt++] = PaletteStart; // palette address
+          risc->hwenum_buf[risc->hwenum_cnt++] = 2048; // maximum width
+          risc->hwenum_buf[risc->hwenum_cnt++] = 2048; // maximum height
+          risc->hwenum_buf[risc->hwenum_cnt++] = 32; // width increment
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // height increment
+          risc->hwenum_buf[risc->hwenum_cnt++] = -1; // dynamic scan line span
+          risc->hwenum_buf[risc->hwenum_cnt++] = risc->display_start; // base address
+          risc->hwenum_buf[risc->hwenum_cnt++] = 1; // seamless resize
+        }
         break;
       case HW_ENUM_ID('T','i','m','r'):
         risc->hwenum_buf[risc->hwenum_cnt++] = -64; // MMIO address
@@ -732,8 +919,20 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
           risc->hwenum_buf[risc->hwenum_cnt++] = -20; // MMIO clipboard data address
         }
         break;
+      case HW_ENUM_ID('H','s','F','s'):
+        if (risc->hostfs) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -32; // MMIO host fs address
+        }
+        break;
+      case HW_ENUM_ID('D','b','g','C'):
+        risc->hwenum_buf[risc->hwenum_cnt++] = -12; // MMIO debug console address
+        break;
       case HW_ENUM_ID('R','s','e','t'):
         risc->hwenum_buf[risc->hwenum_cnt++] = ROMStart; // Soft reset vector
+        break;
+      case HW_ENUM_ID('v','R','T','C'):
+        risc->hwenum_buf[risc->hwenum_cnt++] = 0; // SDL_GetTicks starts at zero
+        risc->hwenum_buf[risc->hwenum_cnt++] = risc->initial_clock;
         break;
       }
       break;
@@ -781,12 +980,25 @@ uint32_t *risc_get_palette_ptr(struct RISC *risc) {
   return risc->Palette;
 }
 
+struct DisplayMode *risc_get_display_mode(struct RISC *risc, bool *screen_seamless) {
+  if (screen_seamless != NULL)
+    *screen_seamless = risc->screen_seamless;
+  return risc->current_mode;
+}
+
+void risc_size_hint(struct RISC *risc, int width, int height) {
+  if (risc->screen_dynsize) {
+    risc->dyn_mode_slots[1].width = width;
+    risc->dyn_mode_slots[1].height = height;
+  }
+}
+
 struct Damage risc_get_framebuffer_damage(struct RISC *risc) {
   struct Damage dmg = risc->damage;
   risc->damage = (struct Damage){
-    .x1 = risc->fb_width,
+    .x1 = risc->current_mode_span,
     .x2 = 0,
-    .y1 = risc->fb_height,
+    .y1 = risc->current_mode->height,
     .y2 = 0
   };
   return dmg;
