@@ -371,3 +371,77 @@ static uint32_t hostfs_search_file(struct HostFS *hostfs, char *filename) {
   }
   return 0;
 }
+
+
+struct HostTransfer {
+  struct RISC_HostTransfer hosttransfer;
+  FILE *fd;
+};
+
+static void hosttransfer_write(const struct RISC_HostTransfer *hosttransfer_hosttransfer, uint32_t value, uint32_t *ram);
+
+struct RISC_HostTransfer *host_transfer_new() {
+  struct HostTransfer *hosttransfer = calloc(1, sizeof(*hosttransfer));
+  hosttransfer->hosttransfer = (struct RISC_HostTransfer) {
+    .write = hosttransfer_write
+  };
+
+  return &hosttransfer->hosttransfer;
+}
+
+static void hosttransfer_write(const struct RISC_HostTransfer *hosttransfer_hosttransfer, uint32_t value, uint32_t *ram) {
+  struct HostTransfer *hosttransfer = (struct HostTransfer *)hosttransfer_hosttransfer;
+  uint32_t offset = value / 4;
+  uint32_t len = ram[offset + 1];
+  switch(ram[offset]) {
+    case 0x20001: { // OpWriteToHost = 20001H;
+      char* name = (char*) (ram+offset+2);
+      name[len] = '\0';
+      hosttransfer->fd = fopen(name, "wb");
+      if (hosttransfer->fd == NULL) {
+        strcpy(name, "I/O error!");
+        ram[offset+1] = (uint32_t) strlen(name);
+      } else {
+        ram[offset + 1] = 0;
+      }
+      break;
+    }
+    case 0x20002: { // OpWriteBuffer = 20002H;
+      if (len > 0) {
+        fwrite(&ram[offset + 2], len, 1, hosttransfer->fd);
+      } else {
+        fclose(hosttransfer->fd);
+        hosttransfer->fd = NULL;
+      }
+      ram[offset + 1] = 0;
+      break;
+    }
+    case 0x20003: { // OpReadFromHost = 20003H;
+      char* name = (char*) (ram+offset+2);
+      name[len] = '\0';
+      hosttransfer->fd = fopen(name, "rb");
+      if (hosttransfer->fd == NULL) {
+        strcpy(name, "I/O error!");
+        ram[offset + 1] = (uint32_t) strlen(name);
+      } else {
+        ram[offset + 1] = 0;
+      }
+      break;
+    }
+    case 0x20004: { // OpRunOnHost = 20004H;
+      char* name = (char*) (ram+offset+2);
+      strcpy(name, "Run not supported!");
+      ram[offset+1] = (uint32_t) strlen(name);
+      break;
+    }
+    case 0x20005: { // OpReadBuffer = 20005H;
+      len = (uint32_t) fread(&ram[offset + 2], 1, len, hosttransfer->fd);
+      if (len == 0) {
+        fclose(hosttransfer->fd);
+        hosttransfer->fd = NULL;
+      }
+      ram[offset + 1] = len;
+      break;
+    }
+  }
+}
