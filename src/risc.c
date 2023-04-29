@@ -55,6 +55,7 @@ struct RISC {
   const struct RISC_SPI *spi[4];
   const struct RISC_Clipboard *clipboard;
   const struct RISC_HostFS *hostfs;
+  const struct RISC_HostTransfer *hosttransfer;
   struct DisplayMode dyn_mode_slots[2];
   struct DisplayMode *modes;
   struct DisplayMode *current_mode;
@@ -219,6 +220,10 @@ void risc_set_switches(struct RISC *risc, int switches) {
 
 void risc_set_host_fs(struct RISC *risc, const struct RISC_HostFS *hostfs) {
   risc->hostfs = hostfs;
+}
+
+void risc_set_host_transfer(struct RISC *risc, const struct RISC_HostTransfer *hosttransfer) {
+  risc->hosttransfer = hosttransfer;
 }
 
 void risc_reset(struct RISC *risc) {
@@ -673,6 +678,10 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
       if (risc->hostfs) {
         risc->hostfs->write(risc->hostfs, value, risc->RAM);
       }
+      // Host Transfer
+      if (risc->hosttransfer) {
+        risc->hosttransfer->write(risc->hosttransfer, value, risc->RAM);
+      }
       break;
     }
     case 40: {
@@ -781,6 +790,12 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         }
         if (risc->clipboard) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','C','l','p');
+        }
+        if (risc->hostfs) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('H','s','F','s');
+        }
+        if (risc->hosttransfer) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','H','T','x');
         }
         break;
       case HW_ENUM_ID('m','V','i','d'):
@@ -911,6 +926,16 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         if (risc->clipboard) {
           risc->hwenum_buf[risc->hwenum_cnt++] = -24; // MMIO clipboard control address
           risc->hwenum_buf[risc->hwenum_cnt++] = -20; // MMIO clipboard data address
+        }
+        break;
+      case HW_ENUM_ID('H','s','F','s'):
+        if (risc->hostfs) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -32; // MMIO host fs address
+        }
+        break;
+      case HW_ENUM_ID('v','H','T','x'):
+        if (risc->hosttransfer) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -32; // MMIO host transfer address
         }
         break;
       case HW_ENUM_ID('R','s','e','t'):

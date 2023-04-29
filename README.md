@@ -11,6 +11,7 @@ It adds the following features:
 - Provide the current wall clock time via Hardware Enumerator, if enabled
 - 4-bit and 8-bit color modes, with dynamic and seamless resizing
 - HostFS Filesystem
+- Host Transfer support
 
 
 ## Description from the original README
@@ -93,6 +94,7 @@ Usage: `risc [options] disk-image.dsk`
 * `--size <width>x<height>[x<depth>]` Use a non-standard window size and/or color depth
 * `--dynsize` Allow dynamic screen resize from guest
 * `--hostfs <directory>` export files inside DIRECTORY as HostFS (requires a different inner core on disk)
+* `--hosttransfer` Allow the guest to request file transfers from the host
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.
 
@@ -115,6 +117,8 @@ Transfer files using the pcreceive.sh and pcsend.sh scripts.
 You can also drag files onto the emulator window to transfer them into the emulator, if PCLink is running.
 
 Alternatively, use the clipboard integration to exchange text.
+
+You can also use Host Transfer to initiate file transfers from/to the host on the guest.
 
 
 ## Clipboard integration

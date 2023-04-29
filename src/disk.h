@@ -7,4 +7,6 @@ struct RISC_SPI *disk_new(const char *filename);
 
 struct RISC_HostFS *host_fs_new(const char *directory);
 
+struct RISC_HostTransfer *host_transfer_new();
+
 #endif  // DISK_H
