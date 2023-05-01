@@ -13,6 +13,7 @@ It adds the following features:
 - HostFS Filesystem
 - Host Transfer support
 - Debug Console support (a bit more convenient than 8 LEDs for kernel debugging)
+- Paravirtual disk support
 
 
 ## Description from the original README
@@ -96,6 +97,7 @@ Usage: `risc [options] disk-image.dsk`
 * `--dynsize` Allow dynamic screen resize from guest
 * `--hostfs <directory>` export files inside DIRECTORY as HostFS (requires a different inner core on disk)
 * `--hosttransfer` Allow the guest to request file transfers from the host
+* `--paravirtual-disk` Use paravirtual disk emulation instead of SD Card emulation
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.
 

@@ -75,6 +75,7 @@ static struct option long_options[] = {
   { "dynsize",          no_argument,       NULL, 'd' },
   { "hostfs",           required_argument, NULL, 'H' },
   { "hosttransfer",     no_argument,       NULL, 'T' },
+  { "paravirtual-disk", no_argument,       NULL, 'D' },
   { NULL,               no_argument,       NULL, 0   }
 };
 
@@ -105,6 +106,7 @@ static void usage() {
        "  --serial-out FILE     Write serial output to FILE\n"
        "  --hostfs DIRECTORY    Use DIRECTORY as HostFS directory\n"
        "  --hosttransfer        Enable hosttransfer\n"
+       "  --paravirtual-disk    Enable paravirtual disk\n"
        );
   exit(1);
 }
@@ -119,7 +121,7 @@ int main (int argc, char *argv[]) {
     .write = show_leds
   };
 
-  bool fullscreen = false;
+  bool fullscreen = false, paravirtual_disk_option = false;
   double zoom = 0;
   struct DisplayMode all_modes[MAX_MODE_COUNT];
   struct DisplayMode *current_mode;
@@ -132,7 +134,7 @@ int main (int argc, char *argv[]) {
   bool boot_from_serial = false;
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "z:fLTm:s:I:O:SdH:", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "z:fLTm:s:I:O:SdDH:", long_options, NULL)) != -1) {
     switch (opt) {
       case 'z': {
         double x = strtod(optarg, 0);
@@ -187,6 +189,10 @@ int main (int argc, char *argv[]) {
         dynsize_option = true;
         break;
       }
+      case 'D': {
+        paravirtual_disk_option = true;
+        break;
+      }
       case 'I': {
         serial_in = optarg;
         break;
@@ -233,10 +239,10 @@ int main (int argc, char *argv[]) {
   }
 
   if (optind == argc - 1) {
-    risc_set_spi(risc, 1, disk_new(argv[optind]));
+    risc_set_spi(risc, 1, disk_new(argv[optind], paravirtual_disk_option));
   } else if (optind == argc && boot_from_serial) {
     /* Allow diskless boot */
-    risc_set_spi(risc, 1, disk_new(NULL));
+    risc_set_spi(risc, 1, disk_new(NULL, paravirtual_disk_option));
   } else {
     usage();
   }

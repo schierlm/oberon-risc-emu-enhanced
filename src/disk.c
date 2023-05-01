@@ -24,7 +24,7 @@ struct Disk {
 
   enum DiskState state;
   FILE *file;
-  uint32_t offset;
+  uint32_t offset, pv_offset, paravirt_ptr;
 
   uint32_t rx_buf[128];
   int rx_idx;
@@ -41,11 +41,13 @@ static void disk_run_command(struct Disk *disk);
 static void seek_sector(FILE *f, uint32_t secnum);
 static void read_sector(FILE *f, uint32_t buf[static 128]);
 static void write_sector(FILE *f, uint32_t buf[static 128]);
+static void paravirtual_write(const struct RISC_SPI *spi, uint32_t value, uint32_t *RAM);
 
 
-struct RISC_SPI *disk_new(const char *filename) {
+struct RISC_SPI *disk_new(const char *filename, bool paravirtual) {
   struct Disk *disk = calloc(1, sizeof(*disk));
   disk->spi = (struct RISC_SPI) {
+    .paravirtual_write = paravirtual ? paravirtual_write : NULL,
     .read_data = disk_read,
     .write_data = disk_write
   };
@@ -62,6 +64,7 @@ struct RISC_SPI *disk_new(const char *filename) {
     // Check for filesystem-only image, starting directly at sector 1 (DiskAdr 29)
     read_sector(disk->file, &disk->tx_buf[0]);
     disk->offset = (disk->tx_buf[0] == 0x9B1EA38D) ? 0x80002 : 0;
+    disk->pv_offset = disk->offset == 0 ? 0 : 2;
   }
 
   return &disk->spi;
@@ -198,6 +201,30 @@ static void write_sector(FILE *f, uint32_t buf[static 128]) {
   }
 }
 
+static void paravirtual_write(const struct RISC_SPI *spi, uint32_t value, uint32_t *RAM) {
+  struct Disk *disk = (struct Disk *)spi;
+  if ((value & 0xC0000000) == 0) { // setPtr
+    disk->paravirt_ptr = value;
+  }
+  if ((value & 0xC0000000) == 0x80000000) { // read
+    int sector = value & 0x3FFFFFFF;
+    seek_sector(disk->file, sector * 2 - disk->pv_offset);
+    read_sector(disk->file, &RAM[disk->paravirt_ptr / 4]);
+    read_sector(disk->file, &RAM[disk->paravirt_ptr / 4 + 128]);
+  }
+  if ((value & 0xC0000000) == 0xC0000000) { // write
+    int sector = value & 0x3FFFFFFF;
+    seek_sector(disk->file, sector * 2 - disk->pv_offset);
+    if (disk->paravirt_ptr == 0x3FFFFFFF) {
+      fflush(disk->file);
+      ftruncate(fileno(disk->file), ftell(disk->file));
+      disk->file = freopen(NULL, "rb+", disk->file);
+    } else {
+      write_sector(disk->file, &RAM[disk->paravirt_ptr / 4]);
+      write_sector(disk->file, &RAM[disk->paravirt_ptr / 4 + 128]);
+    }
+  }
+}
 
 #define MAX_HOSTFS_FILES 4096
 #define HOSTFS_SECTOR_MAGIC 290000000
