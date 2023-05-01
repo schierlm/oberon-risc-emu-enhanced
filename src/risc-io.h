@@ -10,6 +10,7 @@ struct RISC_Serial {
 };
 
 struct RISC_SPI {
+  void (*paravirtual_write)(const struct RISC_SPI *, uint32_t, uint32_t *);
   uint32_t (*read_data)(const struct RISC_SPI *);
   void (*write_data)(const struct RISC_SPI *, uint32_t);
 };

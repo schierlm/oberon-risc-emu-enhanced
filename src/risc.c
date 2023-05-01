@@ -66,7 +66,7 @@ struct RISC {
 
   struct Damage damage;
 
-  int32_t hwenum_buf[16];
+  int32_t hwenum_buf[24];
   uint32_t hwenum_idx, hwenum_cnt;
 
   uint32_t *RAM;
@@ -686,6 +686,13 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
       }
       break;
     }
+    case 36: {
+      // Paravirtual disk
+      if (risc->spi[1] != NULL && risc->spi[1]->paravirtual_write != NULL) {
+        risc->spi[1]->paravirtual_write(risc->spi[1], value, risc->RAM);
+      }
+      break;
+    }
     case 40: {
       // Clipboard control
       if (risc->clipboard) {
@@ -799,6 +806,9 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         }
         if (risc->hosttransfer) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','H','T','x');
+        }
+        if (risc->spi[1] != NULL && risc->spi[1]->paravirtual_write != NULL) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','D','s','k');
         }
         break;
       case HW_ENUM_ID('m','V','i','d'):
@@ -929,6 +939,11 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         if (risc->clipboard) {
           risc->hwenum_buf[risc->hwenum_cnt++] = -24; // MMIO clipboard control address
           risc->hwenum_buf[risc->hwenum_cnt++] = -20; // MMIO clipboard data address
+        }
+        break;
+      case HW_ENUM_ID('v','D','s','k'):
+        if (risc->spi[1] != NULL && risc->spi[1]->paravirtual_write != NULL) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -28; // MMIO address
         }
         break;
       case HW_ENUM_ID('H','s','F','s'):
