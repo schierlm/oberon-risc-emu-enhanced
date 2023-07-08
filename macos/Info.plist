@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.github.schierlm.OberonRiscEmulator</string>
+    <key>CFBundleExecutable</key>
+    <string>RiscLauncher</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
+    <key>CFBundleDisplayName</key>
+    <string>OberonRiscEmulator</string>
+    <key>CFBundleName</key>
+    <string>OberonRiscEmu</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2014 Peter De Wachter, Copyright © 2023 Michael Schierl</string>
+    <key>CFBundleSignature</key>
+    <string>ObRE</string></dict>
+</plist>

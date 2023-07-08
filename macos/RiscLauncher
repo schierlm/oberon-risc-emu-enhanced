@@ -1,0 +1,4 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+NL=$'\n'
+osascript -e 'tell app "Terminal" to do script "export PATH='"${PWD}:\$PATH$NL"'risc --help"'
