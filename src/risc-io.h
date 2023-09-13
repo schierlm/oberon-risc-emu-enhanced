@@ -30,6 +30,10 @@ struct RISC_HostFS {
   void (*write)(const struct RISC_HostFS *, uint32_t, uint32_t *);
 };
 
+struct RISC_WizNet {
+  void (*write)(const struct RISC_WizNet *, uint32_t, uint32_t *);
+};
+
 struct RISC_HostTransfer {
   void (*write)(const struct RISC_HostTransfer *, uint32_t, uint32_t *);
 };

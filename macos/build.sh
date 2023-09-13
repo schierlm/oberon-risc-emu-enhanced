@@ -7,10 +7,22 @@ curl -L https://github.com/libsdl-org/SDL/releases/download/release-2.28.1/SDL2-
 hdiutil attach SDL2.dmg
 cp -a /Volumes/SDL2/SDL2.framework ${FRAMEWORKS}
 hdiutil detach /Volumes/SDL2
+curl -L https://www.libsdl.org/projects/SDL_net/release/SDL2_net-2.2.0.dmg -o SDL2_net.dmg
+hdiutil attach SDL2_net.dmg
+cp -a /Volumes/SDL2_net/SDL2_net.framework ${FRAMEWORKS}
+hdiutil detach /Volumes/SDL2_net
+mv src/sdl-wiznet.c src/sdl-wiznet.cc
 cc -o risc_x64 -target x86_64-apple-macos10.7 -framework SDL2 -F ${FRAMEWORKS} src/*.c -I ${FRAMEWORKS}/SDL2.framework/Headers
 cc -o risc_arm64 -target arm64-apple-macos11 -framework SDL2 -F ${FRAMEWORKS} src/*.c -I ${FRAMEWORKS}/SDL2.framework/Headers
 lipo -create -output ${CONTENTS}/MacOS/risc risc_x64 risc_arm64
 install_name_tool -add_rpath '@executable_path/../Frameworks' ${CONTENTS}/MacOS/risc
+mv src/sdl-wiznet.cc src/sdl-wiznet.c
+mv src/no-wiznet.c src/no-wiznet.cc
+cc -o risc-net_x64 -target x86_64-apple-macos10.7 -framework SDL2 -framework SDL2_net -F ${FRAMEWORKS} src/*.c -I ${FRAMEWORKS}/SDL2.framework/Headers -I ${FRAMEWORKS}/SDL2_net.framework/Headers
+cc -o risc-net_arm64 -target arm64-apple-macos11 -framework SDL2 -framework SDL2_net -F ${FRAMEWORKS} src/*.c -I ${FRAMEWORKS}/SDL2.framework/Headers -I ${FRAMEWORKS}/SDL2_net.framework/Headers
+lipo -create -output ${CONTENTS}/MacOS/risc-net risc-net_x64 risc-net_arm64
+install_name_tool -add_rpath '@executable_path/../Frameworks' ${CONTENTS}/MacOS/risc-net
+mv src/no-wiznet.cc src/no-wiznet.c
 cp macos/Info.plist ${CONTENTS}
 cp macos/icon.icns ${CONTENTS}/Resources
 cp macos/background.png dmg/.background/background.png

@@ -35,6 +35,8 @@ understands C99 (GCC and clang are fine).
 
 [SDL2]: http://libsdl.org/
 
+To build the WizNet emulation, you also need the SDL2_net library.
+
 The release is continuously built using GitHub Actions. You can grab
 binary snapshots for Windows and macOS from there.
 
@@ -43,11 +45,12 @@ binary snapshots for Windows and macOS from there.
 To install the needed packages on Debian, Ubuntu and derived
 distributions, use this command:
 
-    sudo apt-get install build-essential libsdl2-dev
+    sudo apt-get install build-essential libsdl2-dev libsdl2-net-dev
 
 See your distribution's documentation if you're using something else.
 
-After that, build the emulator using the command `make`.
+After that, build the emulator using the command `make`. Build the WizNet
+emulation using the command `make risc-net`.
 
 ### macOS
 
@@ -98,6 +101,7 @@ Usage: `risc [options] disk-image.dsk`
 * `--hostfs <directory>` export files inside DIRECTORY as HostFS (requires a different inner core on disk)
 * `--hosttransfer` Allow the guest to request file transfers from the host
 * `--paravirtual-disk` Use paravirtual disk emulation instead of SD Card emulation
+* `--wiznet` Emulate WizNet compatible networking
 * `--leds` Print the LED changes to stdout. Useful if you're working on the kernel,
   noisy otherwise.
 

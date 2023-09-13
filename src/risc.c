@@ -55,6 +55,8 @@ struct RISC {
   const struct RISC_SPI *spi[4];
   const struct RISC_Clipboard *clipboard;
   const struct RISC_HostFS *hostfs;
+  const struct RISC_WizNet *wiznet;
+
   const struct RISC_HostTransfer *hosttransfer;
   struct DisplayMode dyn_mode_slots[2];
   struct DisplayMode *modes;
@@ -222,6 +224,11 @@ void risc_set_switches(struct RISC *risc, int switches) {
 
 void risc_set_host_fs(struct RISC *risc, const struct RISC_HostFS *hostfs) {
   risc->hostfs = hostfs;
+}
+
+
+void risc_set_wiznet(struct RISC *risc, const struct RISC_WizNet *wiznet) {
+  risc->wiznet = wiznet;
 }
 
 void risc_set_host_transfer(struct RISC *risc, const struct RISC_HostTransfer *hosttransfer) {
@@ -677,11 +684,15 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
     }
     case 32: {
       // Host FS
-      if (risc->hostfs) {
+      if (risc->hostfs && (risc->RAM[value/4] >> 16) == 0) {
         risc->hostfs->write(risc->hostfs, value, risc->RAM);
       }
+      // WizNet
+      if (risc->wiznet && (risc->RAM[value/4] >> 16) == 1) {
+        risc->wiznet->write(risc->wiznet, value, risc->RAM);
+      }
       // Host Transfer
-      if (risc->hosttransfer) {
+      if (risc->hosttransfer && (risc->RAM[value/4] >> 16) == 2) {
         risc->hosttransfer->write(risc->hosttransfer, value, risc->RAM);
       }
       break;
@@ -803,6 +814,9 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
         }
         if (risc->hostfs) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('H','s','F','s');
+        }
+        if (risc->wiznet) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','N','e','t');
         }
         if (risc->hosttransfer) {
           risc->hwenum_buf[risc->hwenum_cnt++] = HW_ENUM_ID('v','H','T','x');
@@ -949,6 +963,11 @@ static void risc_store_io(struct RISC *risc, uint32_t address, uint32_t value) {
       case HW_ENUM_ID('H','s','F','s'):
         if (risc->hostfs) {
           risc->hwenum_buf[risc->hwenum_cnt++] = -32; // MMIO host fs address
+        }
+        break;
+      case HW_ENUM_ID('v','N','e','t'):
+        if (risc->wiznet) {
+          risc->hwenum_buf[risc->hwenum_cnt++] = -32; // MMIO wiznet address
         }
         break;
       case HW_ENUM_ID('v','H','T','x'):

@@ -9,16 +9,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Update repository
+      run: sudo apt update
     - name: Install dependencies
-      run: sudo apt install libsdl2-dev
+      run: sudo apt install libsdl2-dev libsdl2-net-dev
     - name: Build
-      run: make
+      run: make risc risc-net
   cross-build-windows:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Build for Windows
       run: |
+        sudo apt-get update
         sudo apt-get install gcc-mingw-w64-i686
         pushd ..
         mkdir sdl2
@@ -30,8 +33,21 @@ jobs:
         make
         sudo make install
         popd
-        i686-w64-mingw32-gcc-win32 -o risc src/sdl-main.c src/sdl-ps2.c src/risc.c src/risc-fp.c src/disk.c src/pclink.c src/raw-serial.c src/sdl-clipboard.c -g -Os -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-parameter -std=c99 `/usr/local/cross-tools/i686-w64-mingw32/bin/sdl2-config --cflags --libs` -lm -mconsole
-        i686-w64-mingw32-gcc-win32 -o riscw src/sdl-main.c src/sdl-ps2.c src/risc.c src/risc-fp.c src/disk.c src/pclink.c src/raw-serial.c src/sdl-clipboard.c -g -Os -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-parameter -std=c99 `/usr/local/cross-tools/i686-w64-mingw32/bin/sdl2-config --cflags --libs` -lm -mwindows
+        i686-w64-mingw32-gcc-win32 -o risc src/sdl-main.c src/no-wiznet.c src/sdl-ps2.c src/risc.c src/risc-fp.c src/disk.c src/pclink.c src/raw-serial.c src/sdl-clipboard.c -g -Os -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-parameter -std=c99 `/usr/local/cross-tools/i686-w64-mingw32/bin/sdl2-config --cflags --libs` -lm -mconsole
+        i686-w64-mingw32-gcc-win32 -o riscw src/sdl-main.c src/no-wiznet.c src/sdl-ps2.c src/risc.c src/risc-fp.c src/disk.c src/pclink.c src/raw-serial.c src/sdl-clipboard.c -g -Os -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-parameter -std=c99 `/usr/local/cross-tools/i686-w64-mingw32/bin/sdl2-config --cflags --libs` -lm -mwindows
+        pushd ..
+        mkdir sdl2-net
+        cd sdl2-net
+        wget https://www.libsdl.org/projects/SDL_net/release/SDL2_net-2.2.0.tar.gz
+        tar xfz SDL2_net-2.2.0.tar.gz
+        cd SDL2_net-2.2.0
+        export SDL2_CONFIG=/usr/local/cross-tools/i686-w64-mingw32/bin/sdl2-config
+        ./configure --host=i686-w64-mingw32
+        make
+        sudo make install
+        popd
+        i686-w64-mingw32-gcc-win32 -o risc-net src/sdl-main.c src/sdl-wiznet.c src/sdl-ps2.c src/risc.c src/risc-fp.c src/disk.c src/pclink.c src/raw-serial.c src/sdl-clipboard.c -g -Os -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-parameter -std=c99 `/usr/local/cross-tools/i686-w64-mingw32/bin/sdl2-config --cflags --libs` -lm -lSDL2_net -mconsole
+        i686-w64-mingw32-gcc-win32 -o riscw-net src/sdl-main.c src/sdl-wiznet.c src/sdl-ps2.c src/risc.c src/risc-fp.c src/disk.c src/pclink.c src/raw-serial.c src/sdl-clipboard.c -g -Os -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-parameter -std=c99 `/usr/local/cross-tools/i686-w64-mingw32/bin/sdl2-config --cflags --libs` -lm -lSDL2_net -mwindows
     - name: Upload console binary
       uses: actions/upload-artifact@v2
       with:
@@ -42,6 +58,16 @@ jobs:
       with:
         name: WindowsBinaries
         path: riscw.exe
+    - name: Upload console WizNet binary
+      uses: actions/upload-artifact@v2
+      with:
+        name: WindowsBinaries
+        path: risc-net.exe
+    - name: Upload windows WizNet binary
+      uses: actions/upload-artifact@v2
+      with:
+        name: WindowsBinaries
+        path: riscw-net.exe
   build-macos:
     runs-on: macos-12
     steps:

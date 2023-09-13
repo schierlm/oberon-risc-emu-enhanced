@@ -34,6 +34,7 @@ static enum Action map_keyboard_event(SDL_KeyboardEvent *event);
 static void show_leds(const struct RISC_LED *leds, uint32_t value);
 static double scale_display(SDL_Window *window, const SDL_Rect *risc_rect, SDL_Rect *display_rect);
 static void update_texture(struct RISC *risc, SDL_Texture *texture, const SDL_Rect *risc_rect, int depth);
+struct RISC_WizNet *wiznet_new();
 
 enum Action {
   ACTION_OBERON_INPUT,
@@ -76,6 +77,7 @@ static struct option long_options[] = {
   { "hostfs",           required_argument, NULL, 'H' },
   { "hosttransfer",     no_argument,       NULL, 'T' },
   { "paravirtual-disk", no_argument,       NULL, 'D' },
+  { "wiznet",           no_argument,       NULL, 'W' },
   { NULL,               no_argument,       NULL, 0   }
 };
 
@@ -107,6 +109,7 @@ static void usage() {
        "  --hostfs DIRECTORY    Use DIRECTORY as HostFS directory\n"
        "  --hosttransfer        Enable hosttransfer\n"
        "  --paravirtual-disk    Enable paravirtual disk\n"
+       "  --wiznet              Enable WizNet emulation\n"
        );
   exit(1);
 }
@@ -134,7 +137,7 @@ int main (int argc, char *argv[]) {
   bool boot_from_serial = false;
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "z:fLTm:s:I:O:SdDH:", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "z:fLTm:s:I:O:SdDH:W", long_options, NULL)) != -1) {
     switch (opt) {
       case 'z': {
         double x = strtod(optarg, 0);
@@ -212,6 +215,10 @@ int main (int argc, char *argv[]) {
       }
       case 'T': {
         risc_set_host_transfer(risc, host_transfer_new());
+        break;
+      }
+      case 'W': {
+        risc_set_wiznet(risc, wiznet_new());
         break;
       }
       default: {
