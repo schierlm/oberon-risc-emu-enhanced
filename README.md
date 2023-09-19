@@ -1,4 +1,14 @@
-# Oberon RISC Emulator
+# Oberon RISC Emulator Enhanced
+
+This is a fork of Peter de Wachter's [Oberon RISC Emulator](https://github.com/pdewacht/oberon-risc-emu).
+It adds the following features:
+
+- [Hardware Enumerator](https://github.com/schierlm/OberonEmulator/blob/master/hardware-enumerator.md) support
+- RISC Interrupt support
+- PCLink works for binary files on Windows platform
+
+
+## Description from the original README
 
 This is an emulator for the Oberon RISC machine. For more information,
 [see Niklaus Wirth's site](https://www.inf.ethz.ch/personal/wirth/). For
@@ -17,6 +27,9 @@ understands C99 (GCC and clang are fine).
 
 [SDL2]: http://libsdl.org/
 
+The release is continuously built using GitHub Actions. You can grab
+binary snapshots for Windows and macOS from there.
+
 ### Linux
 
 To install the needed packages on Debian, Ubuntu and derived
@@ -28,9 +41,11 @@ See your distribution's documentation if you're using something else.
 
 After that, build the emulator using the command `make`.
 
-### OS X
+### macOS
 
-I can't give much support for OS X, but I've had many reports saying
+There's a pre-compiled version in Github's Releases section.
+
+I can't give much support for macOS, but I've had many reports saying
 it works fine. The main stumbling block seems to be that there are two
 ways to install the SDL development files: Unix style and Xcode style,
 as explained in the [SDL Mac OS X FAQ].
@@ -42,7 +57,7 @@ For Xcode style, use `make osx`.
 
 ### Windows
 
-There's a pre-compiled version in Github's Releases section.
+There's a pre-compiled version in Github's Releases section, cross compiled from Linux.
 
 See the [SDL site][SDL2]  for how to set up a compiler
 for Windows. It's fiddly.
@@ -57,24 +72,10 @@ for my own future reference.)
 
 ## Disk image
 
-You can find an up-to-date disk image in the [DiskImage/](DiskImage/)
-directory. These images contain a full Project Oberon 2013 system,
-with all source code, symbol files, etc.
-
-They also have a few tweaks for better integration with the emulator
-(though it should still work fine on real hardware):
-
-* The Display module supports variable display resolution. (The
-  original module was hardcoded for 1024x768.)
-
-* There's a Clipboard module for basic clipboard integration,
-  documented below.
-
-The source code for these modifications can be found in the
-[Mods/](Mods/) directory. The tools to generate the disk image exist
-in the [Project Norebo] repository.
-
-[Project Norebo]: https://github.com/pdewacht/project-norebo
+If you don't know what disk image to use, you probably want to use one of the disk images
+from the [Oberon2013Modifications](https://github.com/schierlm/Oberon2013Modifications). The
+images from the original emulator should be fine too, as well as every image that either supports
+the Hardware Enumerator or runs on Wirth's original board.
 
 
 ## Command line options
@@ -115,16 +116,10 @@ clipboard using these commands:
 * `Clipboard.CopySelection`
 * `Clipboard.CopyViewer`
 
-
-## Known issues
-
-* The wireless network interface is not emulated.
-* Proper documentation is needed.
-
-
 ## Copyright
 
 Copyright © 2014 Peter De Wachter
+Copyright © 2018-2023 Michael Schierl
 
 Permission to use, copy, modify, and/or distribute this software for
 any purpose with or without fee is hereby granted, provided that the
