@@ -69,6 +69,7 @@ static struct option long_options[] = {
   { "fullscreen",       no_argument,       NULL, 'f' },
   { "leds",             no_argument,       NULL, 'L' },
   { "mem",              required_argument, NULL, 'm' },
+  { "mono-colors",      required_argument, NULL, 'M' },
   { "size",             required_argument, NULL, 's' },
   { "serial-in",        required_argument, NULL, 'I' },
   { "serial-out",       required_argument, NULL, 'O' },
@@ -103,6 +104,8 @@ static void usage() {
        "                        Set framebuffer size or multiple resolutions\n"
        "                        DEPTH has to be 1, 4 or 8, and multiple modes'\n"
        "                        depths must be ascending order.\n"
+       "  --mono-colors 0000ff,ffff00\n"
+       "                        Use a different \"palette\" in monochrome mode\n"
        "  --boot-from-serial    Boot from serial line (disk image not required)\n"
        "  --serial-in FILE      Read serial input from FILE\n"
        "  --serial-out FILE     Write serial output to FILE\n"
@@ -185,6 +188,12 @@ int main (int argc, char *argv[]) {
           all_modes[mode_count].index = mode_count;
           last_depth = d;
           mode_count++;
+        }
+        break;
+      }
+      case 'M': {
+        if (sscanf(optarg, "%x,%x", &BLACK, &WHITE) != 2) {
+          usage();
         }
         break;
       }

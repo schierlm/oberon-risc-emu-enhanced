@@ -97,6 +97,7 @@ Usage: `risc [options] disk-image.dsk`
 * `--mem <megs>` Give the system more than 1 megabyte of RAM.
 * `--rtc` Provide the current wall clock time via Hardware Enumerator
 * `--size <width>x<height>[x<depth>]` Use a non-standard window size and/or color depth
+* `--mono-colors 0000ff,ffff00` Use a different "palette" in monochrome mode
 * `--dynsize` Allow dynamic screen resize from guest
 * `--hostfs <directory>` export files inside DIRECTORY as HostFS (requires a different inner core on disk)
 * `--hosttransfer` Allow the guest to request file transfers from the host
