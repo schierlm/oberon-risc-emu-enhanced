@@ -50,9 +50,11 @@ echo '
      end tell
    end tell
 ' | osascript
+sleep 20
 chmod -Rf go-w /Volumes/OberonRiscEmulator
 sync
 sync
+sleep 5
 hdiutil detach /Volumes/OberonRiscEmulator
 hdiutil convert temp.dmg -format UDZO -imagekey zlib-level=9 -o OberonRiscEmulator.dmg
 rm -f temp.dmg
