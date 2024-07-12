@@ -77,7 +77,7 @@ uint32_t fp_mul(uint32_t x, uint32_t y) {
 
   uint32_t e1 = (xe + ye) - 127;
   uint32_t z0;
-  if ((m & (1ULL << 47)) != 0) {
+  if (((m + (1<<23)) & (1ULL << 47)) != 0) {
     e1++;
     z0 = ((m >> 23) + 1) & 0xFFFFFF;
   } else {
