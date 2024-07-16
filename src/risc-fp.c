@@ -54,7 +54,12 @@ uint32_t fp_add(uint32_t x, uint32_t y, bool u, bool v) {
   bool yn = (y & 0x7FFFFFFF) == 0;
 
   if (v) {
-    return (int32_t)(sum << 5) >> 6;
+    sum = (int32_t)(sum << 5) >> 6;
+    while(xe > 150) {
+        xe--;
+        sum *= 2;
+    }
+    return sum;
   } else if (xn) {
     return (u | yn) ? 0 : y;
   } else if (yn) {
@@ -77,7 +82,7 @@ uint32_t fp_mul(uint32_t x, uint32_t y) {
 
   uint32_t e1 = (xe + ye) - 127;
   uint32_t z0;
-  if (((m + (1<<23)) & (1ULL << 47)) != 0) {
+  if (((m + (1<<22)) & (1ULL << 47)) != 0) {
     e1++;
     z0 = ((m >> 23) + 1) & 0xFFFFFF;
   } else {
